@@ -27,9 +27,8 @@ In order. Owner in brackets.
 
 1. ~~**[Gabriel] Switch to an editable install.**~~ Done 30 Sep: the package loads from
    `D:\DS ML\efactura-audit\src`, so Claude's changes apply after an app restart.
-2. **[Gabriel] Pick up 0.2.0:** stop the app, run `.venv\Scripts\python.exe -m pip install -e .` (updates
-   the version to 0.2.0, adds pyyaml, pins mcp<2), then `.venv\Scripts\efactura-audit -w C:\Users\Gabriel\efactura-demo build -v`
-   (migrates the demo workspace and runs the data tests). Do the same for the default workspace.
+2. ~~**[Gabriel] Pick up 0.2.0.**~~ Done 7 Oct: 0.2.0 installed, demo and default workspaces migrated, 35/35
+   data tests pass on both.
 3. **[Gabriel] Rehearse the demo:** follow `docs/validation/demo-walkthrough.md` once, start to finish.
 4. **[Gabriel] Local model (optional for demos):** install Ollama, run `ollama pull qwen3:8b`, then
    `.venv\Scripts\efactura-audit test-model --model qwen3:8b` (Ollama's folder already exists on the PC). Paste the result to Claude if it isn't approved.
@@ -48,8 +47,10 @@ In order. Owner in brackets.
 - Project: `D:\DS ML\efactura-audit`, virtualenv in `.venv` (Windows, PowerShell, Python 3.14). Claude Code
   running on the PC can use the `.venv` directly (tests, demo, CLI); a session that is only linked to the
   folder can write files but not run it. Git: `main`, pushed to the private repo github.com/gabrieln2805/efactura-audit.
-- Editable install (`pip install -e .`): code changes need only an app restart. **Stop the app before any
-  pip install**, or Windows locks `efactura-audit.exe` (WinError 32).
+- Editable install (`pip install -e .`): code changes need only an app restart. **Stop the app and any
+  `explore` window before any pip install**, or Windows locks `efactura-audit.exe` (WinError 32). A failed
+  install leaves `.venv\Lib\site-packages\~factura_audit-*.dist-info` and "No module named efactura_audit":
+  delete that folder and re-run the install. Pasting several commands at once runs them all even if the first fails.
 - An old app copy can keep port 8501 after its window closes. `efactura-audit app` now moves to the next free
   port and says so; to stop the old one:
   `Stop-Process -Id (Get-NetTCPConnection -LocalPort 8501 -State Listen).OwningProcess -Force`.
