@@ -90,7 +90,8 @@ Speed on 9,895 invoices: import 6 s, full audit 12 s.
   `list_flags`, `get_flag`, `search_invoices`, `get_invoice`, `supplier_summary`, `top_suppliers`,
   `price_changes`, `spend_over_time`, `run_sql`) and every figure comes from their SQL results. Each answer shows
   the tool calls and results it used. `run_sql` accepts a single SELECT on a read-only connection with file and
-  network access disabled.
+  network access disabled, and is given the marts (`fct_invoices`, `fct_flags`, `dim_suppliers`, …) with their
+  documented columns.
 - **Model selection.** Ollama (local) is the default. Anthropic, OpenAI and Mistral are off until enabled in
   Settings and use the client's own key (kept in the session only, or read from `ANTHROPIC_API_KEY`,
   `OPENAI_API_KEY`, `MISTRAL_API_KEY`).
@@ -131,21 +132,52 @@ redaction, so use it only where the client has agreed to that.
 ```mermaid
 flowchart LR
     A[ANAF SPV<br/>e-invoice ZIP/XML] --> B[Local importer<br/>UBL / CIUS-RO parser]
-    B --> C[(DuckDB<br/>invoice store)]
-    C --> D[Anomaly engine<br/>rules + ML scores]
-    D --> C
-    C --> E[MCP server<br/>query tools]
+    B --> C[(DuckDB<br/>raw tables)]
+    C --> M[SQL models<br/>staging → intermediate → marts]
+    M --> D[Anomaly engine<br/>rules + ML scores]
+    D -->|item groups, flags| C
+    M --> E[MCP server<br/>query tools]
     E --> F[Streamlit app<br/>audit view + chat]
     F --> G{Model router}
     G --> H[Local model<br/>Ollama, default]
     G -.-> I[Cloud model<br/>client's own key]
-    D --> J[Report<br/>PDF / Excel]
+    M --> J[Report<br/>PDF / Excel]
 ```
+
+### Data model (dbt-style)
+
+Python writes tables; everything that reads data goes through SQL models in
+`src/efactura_audit/transform/`, laid out like a dbt project and built in DuckDB without a dbt
+dependency (`{{ ref() }}`, `{{ source() }}`, `schema.yml` tests, so moving to dbt-duckdb later is mechanical).
+
+| Layer | Models | Read by |
+|---|---|---|
+| **sources** (Python writes) | `raw_invoices`, `raw_invoice_lines`, `raw_vat_breakdown` (importer, append-only); `item_groups`, `flags` (audit engine); `flag_feedback` (reviewers) | staging |
+| **staging** | `stg_invoices` (adds `spend_ron`), `stg_invoice_lines`, `stg_vat_breakdown` | intermediate, marts |
+| **intermediate** | `int_invoice_lines` (lines + header + price in lei, input to item matching), `int_invoice_features`, `int_vat_subtotals`, `int_invoice_vat_totals`, `int_supplier_ibans` | the checks |
+| **marts** | `fct_invoices`, `fct_invoice_lines`, `fct_flags`, `fct_flag_invoices`, `dim_suppliers`, `dim_supplier_bank_accounts`, `mart_supplier_monthly_spend` | checks, app, report, assistant tools, `run_sql` |
+
+- Every model is a view, so imports and audits never need a rebuild step. Views are recreated only
+  when the model files change. Column descriptions from `schema.yml` are stored as DuckDB comments,
+  and `run_sql`'s table list is generated from the marts' documented columns.
+- SQL computes measures (differences, gaps, counts), and Python applies the thresholds from
+  `config.toml`. Stateful algorithms (price episodes, duplicate pairing, IBAN sequences, fuzzy item
+  matching, Isolation Forest and autoencoder) stay in Python and read the models through `ctx.ref()`.
+  Item matching is a Python model: it reads `int_invoice_lines` and writes `item_groups`.
+- **Data tests** (35: not_null, unique, accepted_values, relationships, plus checks such as lines not
+  adding up to the header, a foreign currency without a RON rate, or several buyers in one workspace)
+  run after every import and audit. Results go to `data_test_results` and appear in the Import tab
+  and on the CLI. `efactura-audit build -v` rebuilds the models and lists every test.
+- `efactura-audit -w <workspace> explore` opens DuckDB's web UI on the workspace, read-only, to browse
+  every table and model (Ctrl+C to close; while it's open the app can't save).
+- 0.1.x workspaces are migrated in place the first time they are opened: tables are renamed to
+  `raw_*`, item groups move out of the lines table, and review feedback is kept.
 
 | Module | Role |
 |---|---|
 | `importer/parser.py`, `importer/anaf_zip.py` | UBL Invoice/CreditNote parser (credit notes stored negative; EUR converted with the RON VAT total the CIUS-RO profile requires), ANAF ZIP walker |
-| `store.py` | DuckDB schema, bulk import, flags, review feedback, short-lived connections so app, CLI and MCP server share one file |
+| `store.py` | DuckDB source tables, bulk import, flags, review feedback, migration of 0.1.x workspaces, short-lived connections so app, CLI and MCP server share one file |
+| `transform/` | dbt-style SQL models (`models/staging`, `intermediate`, `marts`), `schema.yml` docs and tests, singular `data_tests/`, and the runner (dependency order, build fingerprint, tests) |
 | `itemmatch.py` | Item groups per supplier and across suppliers |
 | `checks/` | `duplicates`, `prices`, `outliers`, `vat`, `suppliers` |
 | `engine.py` | Runs the checks, consolidates overlapping flags, saves a run |
@@ -154,7 +186,7 @@ flowchart LR
 | `mcp_server.py` | FastMCP stdio server |
 | `app/` | Streamlit UI (Romanian default, English toggle) |
 | `synthetic.py`, `ubl_writer.py`, `evaluate.py` | Synthetic ANAF-style data with ground truth, UBL writer, scoring |
-| `cli.py` | `demo`, `import`, `audit`, `report`, `app`, `mcp`, `ask`, `test-model`, `feedback`, `status`, `init`, `reset` |
+| `cli.py` | `demo`, `import`, `audit`, `build`, `explore`, `report`, `app`, `mcp`, `ask`, `test-model`, `feedback`, `status`, `init`, `reset` |
 
 ## Legal and data rules, as implemented
 
@@ -172,13 +204,17 @@ Screenshots and a sample Romanian report from the demo data are in `docs/`.
 ## Development
 
 ```bash
-.venv/bin/python -m pytest          # 51 tests, ~1 minute (includes MCP subprocess and Streamlit AppTest)
+.venv/bin/python -m pytest          # 59 tests, ~1 minute (includes MCP subprocess and Streamlit AppTest)
 ```
 
 Tests cover the parser (credit notes, EUR, nested ZIPs, non-invoice files), CUI/IBAN validation, item matching,
 each check on handcrafted invoices, recall on the synthetic ground truth, feedback persistence, reports, all tool
 functions, read-only SQL, redaction, the agent loop, each provider's wire format (mocked HTTP), MCP parity with
-the in-process tools, the model test harness, the CLI and an app smoke test.
+the in-process tools, the model test harness, the CLI, an app smoke test, and the model layer (layers only
+read upstream, data tests pass on clean data and catch broken data, rebuild only on change, 0.1.x migration).
+
+To change a model, edit the `.sql`/`.yml` under `src/efactura_audit/transform/models/`, then run
+`efactura-audit -w <workspace> build -v`. The views are rebuilt and the data tests run.
 
 ## Known limits and next steps
 

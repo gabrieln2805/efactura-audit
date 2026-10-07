@@ -1,7 +1,7 @@
 """Shared types for the anomaly checks."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
@@ -22,13 +22,25 @@ CHECK_LABELS = {
 
 @dataclass
 class AuditContext:
-    invoices: pd.DataFrame   # one row per invoice; column `amt` = amount in RON
-    lines: pd.DataFrame      # one row per line; column `price` = unit price in RON, `item_group`
-    vat: pd.DataFrame        # VAT subtotals
+    invoices: pd.DataFrame   # fct_invoices; `spend_ron` = amount in RON
+    lines: pd.DataFrame      # fct_invoice_lines; `price_ron` = unit price in RON, `item_group`, `item_label`, `xgroup`
     settings: dict[str, Any]
+    store: Any = None        # Store, for ref()
+    _refs: dict[str, pd.DataFrame] = field(default_factory=dict, repr=False)
 
     def cfg(self, section: str) -> dict[str, Any]:
         return self.settings.get(section, {})
+
+    def ref(self, model: str, order_by: str = "") -> pd.DataFrame:
+        """Read a SQL model (see transform/models), like dbt's ref() from a Python model."""
+        key = f"{model}|{order_by}"
+        if key not in self._refs:
+            sql = f"SELECT * FROM {model}" + (f" ORDER BY {order_by}" if order_by else "")
+            df = self.store.df(sql)
+            if "issue_date" in df:
+                df["issue_date"] = pd.to_datetime(df["issue_date"])
+            self._refs[key] = df
+        return self._refs[key]
 
     @property
     def data_start(self) -> pd.Timestamp:

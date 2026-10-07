@@ -24,9 +24,8 @@ def run(ctx: AuditContext) -> list[dict]:
     inv = ctx.invoices.sort_values(["issue_date", "number"])
     flags: list[dict] = []
 
-    shared = (inv[inv["supplier_iban"].fillna("") != ""]
-              .groupby("supplier_iban")["supplier_cui"].nunique())
-    shared_ibans = set(shared[shared > 1].index)
+    accounts = ctx.ref("int_supplier_ibans")
+    shared_ibans = set(accounts.loc[accounts["suppliers_on_account"] > 1, "supplier_iban"])
     bad_cuis: set[str] = set()
 
     for cui, part in inv.groupby("supplier_cui"):
@@ -55,12 +54,12 @@ def run(ctx: AuditContext) -> list[dict]:
                 new_iban = seq[i]
                 if returns and len(block) <= 3:
                     rule, sev, score = "iban_one_off", "high", 0.9
-                    at_risk = float(block["amt"].sum())
+                    at_risk = float(block["spend_ron"].sum())
                     t_en = f"{name}: {len(block)} invoice(s) paid to a different bank account, then back to the usual one"
                     t_ro = f"{name}: {len(block)} factur(i) cu alt cont bancar, apoi revenire la contul obișnuit"
                 else:
                     rule, sev, score = "iban_changed", "medium", 0.7
-                    at_risk = float(block.iloc[0]["amt"])
+                    at_risk = float(block.iloc[0]["spend_ron"])
                     t_en = f"{name}: bank account changed from invoice {block.iloc[0]['number']}"
                     t_ro = f"{name}: cont bancar schimbat începând cu factura {block.iloc[0]['number']}"
                 flags.append(make_flag(
@@ -101,10 +100,10 @@ def run(ctx: AuditContext) -> list[dict]:
             flags.append(make_flag(
                 check="supplier", rule="invalid_cui", severity="medium", score=0.65, supplier_cui=cui, supplier_name=name,
                 invoice_keys=[first["invoice_key"]], invoice_numbers=[first["number"]], issue_date=first["issue_date"],
-                amount_at_risk=float(part["amt"].sum()),
+                amount_at_risk=float(part["spend_ron"].sum()),
                 title_en=f"{name}: fiscal code {cui} fails the CUI control digit",
                 title_ro=f"{name}: codul fiscal {cui} nu trece verificarea cifrei de control",
-                evidence={"cui": cui, "invoices": int(len(part)), "total_ron": round(float(part["amt"].sum()), 2),
+                evidence={"cui": cui, "invoices": int(len(part)), "total_ron": round(float(part["spend_ron"].sum()), 2),
                           "what_to_check_en": "Look the company up on ANAF's public register before paying.",
                           "what_to_check_ro": "Verificați firma în registrul public ANAF înainte de plată."},
             ))
@@ -124,7 +123,7 @@ def run(ctx: AuditContext) -> list[dict]:
         # --- new supplier -------------------------------------------------------------------------
         if first["issue_date"] > ctx.data_start + grace:
             early = part[part["issue_date"] <= first["issue_date"] + pd.Timedelta(days=60)]
-            spend = float(early["amt"].sum())
+            spend = float(early["spend_ron"].sum())
             if spend >= new_min:
                 risky = any(ib in shared_ibans for ib in part["supplier_iban"].dropna()) or cui in bad_cuis
                 # sparse suppliers also "appear" late in the data, so size alone is only medium
@@ -153,12 +152,12 @@ def run(ctx: AuditContext) -> list[dict]:
             check="supplier", rule="shared_iban", severity="high", score=0.85, supplier_cui=",".join(sups.index),
             supplier_name=" / ".join(sups.values), invoice_keys=rows["invoice_key"].tolist()[:30],
             invoice_numbers=rows["number"].tolist()[:30], issue_date=rows["issue_date"].max(),
-            amount_at_risk=float(rows["amt"].sum()), id_extra=iban,
+            amount_at_risk=float(rows["spend_ron"].sum()), id_extra=iban,
             title_en=f"{len(sups)} different suppliers use the same bank account {mask_iban(iban)}",
             title_ro=f"{len(sups)} furnizori diferiți folosesc același cont bancar {mask_iban(iban)}",
             evidence={"iban": mask_iban(iban), "iban_full": iban,
                       "suppliers": [{"cui": c, "name": n} for c, n in sups.items()],
-                      "total_ron": round(float(rows["amt"].sum()), 2),
+                      "total_ron": round(float(rows["spend_ron"].sum()), 2),
                       "what_to_check_en": "Unrelated companies rarely share an account; check ownership and approvals.",
                       "what_to_check_ro": "Firme neafiliate rareori au cont comun; verificați acționariatul și aprobările."},
         ))

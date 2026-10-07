@@ -1,5 +1,10 @@
 """Local DuckDB invoice store.
 
+Tables here are written by Python: ``raw_*`` by the importer, ``item_groups``, ``flags`` and the
+run tables by the audit engine, ``flag_feedback`` by reviewers. Everything that reads data goes
+through the dbt-style SQL models in ``transform/`` (staging -> intermediate -> marts), views built
+on top of these tables.
+
 Connections are short-lived (opened per operation) so the Streamlit app, the CLI and the MCP
 server can share one file: DuckDB allows one writer process at a time, and a brief retry covers
 the moment another process holds the lock.
@@ -18,12 +23,14 @@ from typing import TYPE_CHECKING
 import duckdb
 import pandas as pd
 
+from .transform import TestResult, project
+
 if TYPE_CHECKING:
     from .importer.parser import ParsedInvoice
 
 SCHEMA = [
     """
-    CREATE TABLE IF NOT EXISTS invoices (
+    CREATE TABLE IF NOT EXISTS raw_invoices (
         invoice_key VARCHAR PRIMARY KEY,
         anaf_id VARCHAR,
         number VARCHAR,
@@ -54,7 +61,7 @@ SCHEMA = [
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS invoice_lines (
+    CREATE TABLE IF NOT EXISTS raw_invoice_lines (
         invoice_key VARCHAR,
         line_no VARCHAR,
         item_name VARCHAR,
@@ -68,17 +75,25 @@ SCHEMA = [
         net_amount DOUBLE,
         net_amount_ron DOUBLE,
         vat_category VARCHAR,
-        vat_rate DOUBLE,
-        item_group VARCHAR
+        vat_rate DOUBLE
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS vat_breakdown (
+    CREATE TABLE IF NOT EXISTS raw_vat_breakdown (
         invoice_key VARCHAR,
         category VARCHAR,
         rate DOUBLE,
         taxable DOUBLE,
         tax DOUBLE
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS item_groups (
+        invoice_key VARCHAR,
+        line_no VARCHAR,
+        item_group VARCHAR,
+        item_label VARCHAR,
+        xgroup VARCHAR
     )
     """,
     """
@@ -139,11 +154,37 @@ SCHEMA = [
     )
     """,
     """
-    CREATE OR REPLACE VIEW flags_view AS
-    SELECT f.*, COALESCE(fb.status, 'open') AS status, fb.note AS review_note
-    FROM flags f LEFT JOIN flag_feedback fb USING (flag_id)
+    CREATE TABLE IF NOT EXISTS data_test_results (
+        run_at TIMESTAMP,
+        test_name VARCHAR,
+        model VARCHAR,
+        severity VARCHAR,
+        status VARCHAR,
+        failures INTEGER,
+        message VARCHAR
+    )
     """,
 ]
+
+RESET_TABLES = ("raw_invoices", "raw_invoice_lines", "raw_vat_breakdown", "item_groups", "flags", "runs", "import_log",
+                "invoice_scores", "data_test_results")
+
+
+def _migrate_legacy(con) -> None:
+    """0.1.x workspaces stored invoices in ``invoices``/``invoice_lines``/``vat_breakdown`` and wrote
+    item groups into the lines table: rename them to the raw sources and move item groups out."""
+    tables = {r[0] for r in con.execute("SELECT table_name FROM duckdb_tables()").fetchall()}
+    if "invoices" not in tables or "raw_invoices" in tables:
+        return
+    con.execute("BEGIN")
+    con.execute("DROP VIEW IF EXISTS flags_view")
+    for old in ("invoices", "invoice_lines", "vat_breakdown"):
+        con.execute(f"ALTER TABLE {old} RENAME TO raw_{old}")
+    con.execute(next(s for s in SCHEMA if "item_groups" in s))
+    con.execute("""INSERT INTO item_groups SELECT invoice_key, line_no, item_group, NULL, NULL
+                   FROM raw_invoice_lines WHERE item_group IS NOT NULL""")
+    con.execute("COMMIT")
+    con.execute("ALTER TABLE raw_invoice_lines DROP COLUMN item_group")
 
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
@@ -173,8 +214,28 @@ class Store:
 
     def init_schema(self) -> None:
         with self.connect() as con:
+            _migrate_legacy(con)
             for stmt in SCHEMA:
                 con.execute(stmt)
+            project().build(con)
+
+    # ------------------------------------------------------------------ models ("dbt build")
+    def build_models(self, force: bool = False) -> bool:
+        with self.connect() as con:
+            return project().build(con, force=force)
+
+    def run_data_tests(self) -> list[TestResult]:
+        """Run the data tests, keep the results in ``data_test_results`` and return them."""
+        with self.connect() as con:
+            results = project().run_tests(con)
+            now = datetime.now()
+            con.execute("BEGIN")
+            con.execute("DELETE FROM data_test_results")
+            if results:
+                con.executemany("INSERT INTO data_test_results VALUES (?,?,?,?,?,?,?)",
+                                [[now, r.name, r.model, r.severity, r.status, r.failures, r.message] for r in results])
+            con.execute("COMMIT")
+        return results
 
     # ------------------------------------------------------------------ import
     INVOICE_COLS = [
@@ -185,12 +246,12 @@ class Store:
     ]
     LINE_COLS = [
         "invoice_key", "line_no", "item_name", "item_norm", "seller_item_id", "quantity", "unit_code", "unit_price",
-        "unit_price_ron", "base_quantity", "net_amount", "net_amount_ron", "vat_category", "vat_rate", "item_group",
+        "unit_price_ron", "base_quantity", "net_amount", "net_amount_ron", "vat_category", "vat_rate",
     ]
     VAT_COLS = ["invoice_key", "category", "rate", "taxable", "tax"]
 
     def existing_keys(self, con) -> tuple[set[str], set[str]]:
-        rows = con.execute("SELECT invoice_key, xml_sha256 FROM invoices").fetchall()
+        rows = con.execute("SELECT invoice_key, xml_sha256 FROM raw_invoices").fetchall()
         return {r[0] for r in rows}, {r[1] for r in rows}
 
     @staticmethod
@@ -208,7 +269,7 @@ class Store:
             [
                 inv.invoice_key, ln.line_no, ln.item_name, ln.item_norm, ln.seller_item_id, ln.quantity,
                 ln.unit_code, ln.unit_price, None if fx is None else ln.unit_price * fx, ln.base_quantity,
-                ln.net_amount, None if fx is None else ln.net_amount * fx, ln.vat_category, ln.vat_rate, None,
+                ln.net_amount, None if fx is None else ln.net_amount * fx, ln.vat_category, ln.vat_rate,
             ]
             for ln in inv.lines
         ]
@@ -217,15 +278,15 @@ class Store:
 
     def bulk_insert(self, con, heads: list[list], lines: list[list], vat: list[list], logs: list[list]) -> None:
         for table, cols, rows in (
-            ("invoices", self.INVOICE_COLS, heads),
-            ("invoice_lines", self.LINE_COLS, lines),
-            ("vat_breakdown", self.VAT_COLS, vat),
+            ("raw_invoices", self.INVOICE_COLS, heads),
+            ("raw_invoice_lines", self.LINE_COLS, lines),
+            ("raw_vat_breakdown", self.VAT_COLS, vat),
             ("import_log", ["logged_at", "source", "status", "message"], logs),
         ):
             if not rows:
                 continue
             frame = pd.DataFrame(rows, columns=cols)
-            if table == "invoices":
+            if table == "raw_invoices":
                 for c in ("issue_date", "due_date"):
                     frame[c] = pd.to_datetime(frame[c]).dt.date
             con.register("_bulk", frame)
@@ -242,37 +303,20 @@ class Store:
             row = con.execute(sql, params or []).fetchone()
             return row[0] if row else None
 
-    def invoices(self) -> pd.DataFrame:
-        return self.df("SELECT * FROM invoices ORDER BY issue_date, invoice_key")
-
-    def lines(self) -> pd.DataFrame:
-        return self.df(
-            """SELECT l.*, i.supplier_cui, i.supplier_name, i.issue_date, i.number, i.is_credit_note, i.currency
-               FROM invoice_lines l JOIN invoices i USING (invoice_key)
-               ORDER BY i.issue_date, l.invoice_key, l.line_no"""
-        )
-
-    def vat(self) -> pd.DataFrame:
-        return self.df(
-            """SELECT v.*, i.supplier_cui, i.supplier_name, i.issue_date, i.number
-               FROM vat_breakdown v JOIN invoices i USING (invoice_key)"""
-        )
-
     def count_invoices(self) -> int:
-        return int(self.scalar("SELECT COUNT(*) FROM invoices") or 0)
+        return int(self.scalar("SELECT COUNT(*) FROM raw_invoices") or 0)
 
     # ------------------------------------------------------------------ flags
-    def save_item_groups(self, mapping: pd.DataFrame) -> None:
-        """mapping: columns invoice_key, line_no, item_group."""
-        if mapping.empty:
-            return
+    def save_item_groups(self, groups: pd.DataFrame) -> None:
+        """Replace the item-matching output. Columns: invoice_key, line_no, item_group, item_label, xgroup."""
         with self.connect() as con:
-            con.register("m", mapping)
-            con.execute(
-                """UPDATE invoice_lines SET item_group = m.item_group FROM m
-                   WHERE invoice_lines.invoice_key = m.invoice_key AND invoice_lines.line_no = m.line_no"""
-            )
-            con.unregister("m")
+            con.execute("BEGIN")
+            con.execute("DELETE FROM item_groups")
+            if not groups.empty:
+                con.register("_g", groups)
+                con.execute("INSERT INTO item_groups SELECT invoice_key, line_no, item_group, item_label, xgroup FROM _g")
+                con.unregister("_g")
+            con.execute("COMMIT")
 
     def replace_flags(self, run_id: str, flags: list[dict], started_at: datetime, n_invoices: int, params: dict) -> None:
         with self.connect() as con:
@@ -309,7 +353,7 @@ class Store:
 
     def flags(self, include_dismissed: bool = False) -> pd.DataFrame:
         where = "" if include_dismissed else "WHERE status <> 'dismissed'"
-        df = self.df(f"SELECT * FROM flags_view {where}")
+        df = self.df(f"SELECT * FROM fct_flags {where}")
         if df.empty:
             return df
         df["sev_rank"] = df["severity"].map(SEVERITY_ORDER).fillna(3)
@@ -341,5 +385,5 @@ class Store:
     def reset(self) -> None:
         """Remove all invoices and flags (feedback is kept)."""
         with self.connect() as con:
-            for t in ("invoices", "invoice_lines", "vat_breakdown", "flags", "runs", "import_log", "invoice_scores"):
+            for t in RESET_TABLES:
                 con.execute(f"DELETE FROM {t}")

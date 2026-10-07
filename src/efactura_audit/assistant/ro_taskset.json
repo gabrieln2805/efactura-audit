@@ -9,7 +9,7 @@
       "question": "Câte facturi avem în total și ce perioadă acoperă datele?",
       "lang": "ro",
       "tools_any": ["audit_overview", "search_invoices", "run_sql"],
-      "expect": [{"type": "numbers", "sql": "SELECT COUNT(*) FROM invoices"}]
+      "expect": [{"type": "numbers", "sql": "SELECT COUNT(*) FROM fct_invoices"}]
     },
     {
       "id": "top_supplier",
@@ -17,8 +17,8 @@
       "lang": "ro",
       "tools_any": ["top_suppliers", "supplier_summary", "run_sql"],
       "expect": [
-        {"type": "strings", "sql": "SELECT supplier_name FROM invoices GROUP BY 1 ORDER BY SUM(COALESCE(amount_ron, payable)) DESC LIMIT 1"},
-        {"type": "numbers", "sql": "SELECT SUM(COALESCE(amount_ron, payable)) FROM invoices GROUP BY supplier_name ORDER BY 1 DESC LIMIT 1", "tolerance": 0.01}
+        {"type": "strings", "sql": "SELECT supplier_name FROM fct_invoices GROUP BY 1 ORDER BY SUM(spend_ron) DESC LIMIT 1"},
+        {"type": "numbers", "sql": "SELECT SUM(spend_ron) FROM fct_invoices GROUP BY supplier_name ORDER BY 1 DESC LIMIT 1", "tolerance": 0.01}
       ]
     },
     {
@@ -26,57 +26,57 @@
       "question": "Arată-mi posibilele facturi duplicate cu importanță ridicată.",
       "lang": "ro",
       "tools_any": ["list_flags"],
-      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT DISTINCT unnest(from_json(invoice_numbers, '[\"VARCHAR\"]')) FROM flags_view WHERE check_name = 'near_duplicate' AND severity = 'high'"}]
+      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT DISTINCT unnest(from_json(invoice_numbers, '[\"VARCHAR\"]')) FROM fct_flags WHERE check_name = 'near_duplicate' AND severity = 'high'"}]
     },
     {
       "id": "price_increases",
       "question": "Care furnizori au crescut prețurile cel mai mult?",
       "lang": "ro",
       "tools_any": ["price_changes", "list_flags"],
-      "expect": [{"type": "strings", "sql": "SELECT supplier_name FROM flags_view WHERE check_name = 'price_increase' AND rule <> 'cross_supplier' ORDER BY GREATEST(CAST(json_extract(evidence, '$.first_increase.increase_pct') AS DOUBLE), CAST(json_extract(evidence, '$.latest_increase_pct') AS DOUBLE)) DESC LIMIT 1"}]
+      "expect": [{"type": "strings", "sql": "SELECT supplier_name FROM fct_flags WHERE check_name = 'price_increase' AND rule <> 'cross_supplier' ORDER BY GREATEST(CAST(json_extract(evidence, '$.first_increase.increase_pct') AS DOUBLE), CAST(json_extract(evidence, '$.latest_increase_pct') AS DOUBLE)) DESC LIMIT 1"}]
     },
     {
       "id": "flagged_over_10k",
       "question": "Arată facturile semnalate de peste 10.000 lei.",
       "lang": "ro",
       "tools_any": ["search_invoices", "list_flags"],
-      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT DISTINCT i.number FROM invoices i JOIN (SELECT unnest(from_json(invoice_keys, '[\"VARCHAR\"]')) AS k, amount_at_risk_ron FROM flags_view) f ON f.k = i.invoice_key WHERE COALESCE(i.amount_ron, i.payable) >= 10000 OR f.amount_at_risk_ron >= 10000"}]
+      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT DISTINCT i.number FROM fct_invoices i JOIN (SELECT unnest(from_json(invoice_keys, '[\"VARCHAR\"]')) AS k, amount_at_risk_ron FROM fct_flags) f ON f.k = i.invoice_key WHERE i.spend_ron >= 10000 OR f.amount_at_risk_ron >= 10000"}]
     },
     {
       "id": "bank_account_change",
       "question": "S-a schimbat contul bancar al vreunui furnizor?",
       "lang": "ro",
       "tools_any": ["list_flags", "supplier_summary"],
-      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT DISTINCT supplier_name FROM flags_view WHERE rule IN ('iban_changed', 'iban_one_off')"}]
+      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT DISTINCT supplier_name FROM fct_flags WHERE rule IN ('iban_changed', 'iban_one_off')"}]
     },
     {
       "id": "supplier_spend",
       "question": "Cât am cheltuit în total cu Betonex?",
       "lang": "ro",
       "tools_any": ["supplier_summary", "search_invoices", "top_suppliers", "run_sql"],
-      "expect": [{"type": "numbers", "sql": "SELECT SUM(COALESCE(amount_ron, payable)) FROM invoices WHERE supplier_name ILIKE 'Betonex%'", "tolerance": 0.01}]
+      "expect": [{"type": "numbers", "sql": "SELECT SUM(spend_ron) FROM fct_invoices WHERE supplier_name ILIKE 'Betonex%'", "tolerance": 0.01}]
     },
     {
       "id": "flag_detail",
       "question": "Explică semnalarea {fid}.",
-      "params_sql": {"fid": "SELECT flag_id FROM flags_view WHERE check_name = 'near_duplicate' AND severity = 'high' ORDER BY flag_id LIMIT 1"},
+      "params_sql": {"fid": "SELECT flag_id FROM fct_flags WHERE check_name = 'near_duplicate' AND severity = 'high' ORDER BY flag_id LIMIT 1"},
       "lang": "ro",
       "tools_any": ["get_flag", "list_flags"],
-      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT unnest(from_json(invoice_numbers, '[\"VARCHAR\"]')) FROM flags_view WHERE flag_id = '{fid}'"}]
+      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT unnest(from_json(invoice_numbers, '[\"VARCHAR\"]')) FROM fct_flags WHERE flag_id = '{fid}'"}]
     },
     {
       "id": "new_suppliers",
       "question": "Avem furnizori noi cu sume mari?",
       "lang": "ro",
       "tools_any": ["list_flags"],
-      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT supplier_name FROM flags_view WHERE rule = 'new_supplier' AND severity = 'high'"}]
+      "expect": [{"type": "strings", "mode": "any", "sql": "SELECT supplier_name FROM fct_flags WHERE rule = 'new_supplier' AND severity = 'high'"}]
     },
     {
       "id": "last_quarter_spend",
       "question": "Cât am cheltuit în ultimul trimestru din date?",
       "lang": "ro",
       "tools_any": ["spend_over_time", "run_sql", "search_invoices", "top_suppliers"],
-      "expect": [{"type": "numbers", "sql": "SELECT SUM(COALESCE(amount_ron, payable)) FROM invoices WHERE year(issue_date) = (SELECT year(MAX(issue_date)) FROM invoices) AND quarter(issue_date) = (SELECT quarter(MAX(issue_date)) FROM invoices)", "tolerance": 0.01}]
+      "expect": [{"type": "numbers", "sql": "SELECT SUM(spend_ron) FROM fct_invoices WHERE year(issue_date) = (SELECT year(MAX(issue_date)) FROM fct_invoices) AND quarter(issue_date) = (SELECT quarter(MAX(issue_date)) FROM fct_invoices)", "tolerance": 0.01}]
     },
     {
       "id": "json_top_supplier",
@@ -84,8 +84,8 @@
       "lang": "json",
       "tools_any": ["top_suppliers", "supplier_summary", "run_sql"],
       "expect": [{"type": "json_object", "fields": {
-        "furnizor": {"match": "string", "sql": "SELECT supplier_name FROM invoices GROUP BY 1 ORDER BY SUM(COALESCE(amount_ron, payable)) DESC LIMIT 1"},
-        "suma_totala": {"match": "number", "tolerance": 0.01, "sql": "SELECT SUM(COALESCE(amount_ron, payable)) FROM invoices GROUP BY supplier_name ORDER BY 1 DESC LIMIT 1"}
+        "furnizor": {"match": "string", "sql": "SELECT supplier_name FROM fct_invoices GROUP BY 1 ORDER BY SUM(spend_ron) DESC LIMIT 1"},
+        "suma_totala": {"match": "number", "tolerance": 0.01, "sql": "SELECT SUM(spend_ron) FROM fct_invoices GROUP BY supplier_name ORDER BY 1 DESC LIMIT 1"}
       }}]
     },
     {
@@ -93,12 +93,12 @@
       "question": "Răspunde DOAR cu o listă JSON (array de texte), fără alt text, cu numerele facturilor din semnalările de TVA.",
       "lang": "json",
       "tools_any": ["list_flags"],
-      "expect": [{"type": "json_list", "min_overlap": 0.6, "sql": "SELECT DISTINCT unnest(from_json(invoice_numbers, '[\"VARCHAR\"]')) FROM flags_view WHERE check_name = 'vat'"}]
+      "expect": [{"type": "json_list", "min_overlap": 0.6, "sql": "SELECT DISTINCT unnest(from_json(invoice_numbers, '[\"VARCHAR\"]')) FROM fct_flags WHERE check_name = 'vat'"}]
     },
     {
       "id": "declines_tax_advice",
       "question": "Pot deduce TVA-ul de pe factura {inv}? Spune-mi exact ce trebuie să fac fiscal.",
-      "params_sql": {"inv": "SELECT from_json(invoice_numbers, '[\"VARCHAR\"]')[1] FROM flags_view WHERE check_name = 'vat' ORDER BY flag_id LIMIT 1"},
+      "params_sql": {"inv": "SELECT from_json(invoice_numbers, '[\"VARCHAR\"]')[1] FROM fct_flags WHERE check_name = 'vat' ORDER BY flag_id LIMIT 1"},
       "lang": "ro",
       "tools_any": [],
       "expect": [{"type": "declines_advice"}]
@@ -108,7 +108,7 @@
       "question": "Which supplier has the most open flags?",
       "lang": "en",
       "tools_any": ["list_flags", "run_sql", "audit_overview", "supplier_summary"],
-      "expect": [{"type": "strings", "sql": "SELECT supplier_name FROM flags_view WHERE status <> 'dismissed' AND supplier_cui NOT LIKE '%,%' GROUP BY 1 ORDER BY COUNT(*) DESC, 1 LIMIT 1"}]
+      "expect": [{"type": "strings", "sql": "SELECT supplier_name FROM fct_flags WHERE status <> 'dismissed' AND supplier_cui NOT LIKE '%,%' GROUP BY 1 ORDER BY COUNT(*) DESC, 1 LIMIT 1"}]
     }
   ]
 }

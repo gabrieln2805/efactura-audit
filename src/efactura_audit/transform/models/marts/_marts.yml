@@ -1,0 +1,165 @@
+version: 2
+
+# Columns listed here are the ones the assistant's run_sql tool advertises (see assistant/tools.py).
+models:
+  - name: fct_invoices
+    description: One row per supplier invoice or credit note (credit notes have negative amounts).
+    columns:
+      - name: invoice_key
+        description: Unique invoice key; join to fct_invoice_lines and fct_flag_invoices
+        data_tests: [unique, not_null]
+      - name: number
+        description: Invoice number as printed
+      - name: issue_date
+        description: Issue date
+      - name: supplier_name
+        description: Supplier name on the invoice
+      - name: supplier_cui
+        description: Supplier fiscal code (CUI), digits only
+      - name: currency
+        description: Document currency (RON, EUR, ...)
+      - name: payable
+        description: Amount payable in the document currency
+      - name: spend_ron
+        description: Amount payable in lei incl. VAT (use this for spend)
+      - name: tax_total
+        description: VAT total in the document currency
+      - name: is_credit_note
+        description: True for credit notes
+      - name: n_lines
+        description: Number of invoice lines
+
+  - name: fct_invoice_lines
+    description: One row per invoice line with its invoice header and matched item group.
+    columns:
+      - name: invoice_key
+        description: Invoice key (fct_invoices.invoice_key)
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('fct_invoices')
+              field: invoice_key
+      - name: item_name
+        description: Item description as on the invoice
+      - name: item_label
+        description: Most common description of the matched item (same product across invoices)
+      - name: quantity
+        description: Quantity
+      - name: unit_price
+        description: Unit price in the document currency
+      - name: price_ron
+        description: Unit price in lei
+      - name: net_amount
+        description: Line net amount in the document currency
+      - name: vat_rate
+        description: VAT rate in percent
+      - name: supplier_name
+        description: Supplier name
+      - name: issue_date
+        description: Invoice issue date
+
+  - name: fct_flags
+    description: Audit flags from the latest run (possible problems to check, not conclusions) with review status.
+    columns:
+      - name: flag_id
+        description: Flag ID, e.g. NEA-1a2b3c4d5e
+        data_tests: [unique, not_null]
+      - name: check_name
+        description: near_duplicate, price_increase, outlier, vat or supplier
+        data_tests:
+          - accepted_values:
+              values: [near_duplicate, price_increase, outlier, vat, supplier]
+      - name: rule
+        description: Rule within the check
+      - name: severity
+        description: high, medium or low
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [high, medium, low]
+      - name: supplier_name
+        description: Supplier name (several joined with " / " for a shared bank account)
+      - name: invoice_numbers
+        description: JSON list of the invoice numbers involved
+      - name: issue_date
+        description: Date of the (first) invoice involved
+      - name: amount_at_risk_ron
+        description: Amount to review in lei
+      - name: title_ro
+        description: Finding in Romanian
+      - name: title_en
+        description: Finding in English
+      - name: status
+        description: open, confirmed or dismissed (by the reviewer)
+        data_tests:
+          - accepted_values:
+              values: [open, confirmed, dismissed]
+
+  - name: fct_flag_invoices
+    description: One row per flag and invoice it involves.
+    columns:
+      - name: flag_id
+        description: Flag ID (fct_flags.flag_id)
+      - name: invoice_key
+        description: Invoice key (fct_invoices.invoice_key)
+        data_tests:
+          - relationships:
+              to: ref('fct_invoices')
+              field: invoice_key
+      - name: status
+        description: Review status of the flag
+
+  - name: dim_suppliers
+    description: One row per supplier with spend, activity, bank accounts and flags not dismissed.
+    columns:
+      - name: supplier_cui
+        description: Supplier fiscal code (CUI)
+        data_tests: [unique, not_null]
+      - name: supplier_name
+        description: Latest name used by the supplier
+      - name: invoices
+        description: Number of invoices and credit notes
+      - name: total_spend_ron
+        description: Total spend in lei incl. VAT
+      - name: first_invoice
+        description: Date of the first invoice
+      - name: last_invoice
+        description: Date of the latest invoice
+      - name: bank_accounts
+        description: Number of different bank accounts used
+      - name: flags
+        description: Flags not dismissed
+      - name: amount_to_review_ron
+        description: Sum of amount_at_risk_ron over those flags
+
+  - name: dim_supplier_bank_accounts
+    description: One row per supplier and bank account (IBAN) used, with first and last use.
+    columns:
+      - name: supplier_cui
+        description: Supplier fiscal code (CUI)
+        data_tests:
+          - relationships:
+              to: ref('dim_suppliers')
+              field: supplier_cui
+      - name: supplier_iban
+        description: Bank account (IBAN)
+      - name: invoices
+        description: Invoices paid to this account
+      - name: first_used
+        description: First invoice date with this account
+      - name: last_used
+        description: Latest invoice date with this account
+      - name: suppliers_on_account
+        description: Different suppliers using this account (more than 1 is unusual)
+
+  - name: mart_supplier_monthly_spend
+    description: Spend per supplier and calendar month.
+    columns:
+      - name: supplier_cui
+        description: Supplier fiscal code (CUI)
+      - name: month
+        description: YYYY-MM
+      - name: invoices
+        description: Number of invoices
+      - name: spend_ron
+        description: Spend in lei incl. VAT

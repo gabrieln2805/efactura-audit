@@ -18,6 +18,7 @@ import pandas as pd
 
 from ..checks.base import CHECK_LABELS
 from ..store import Store
+from ..transform import project
 from ..utils import mask_iban
 
 CHECK_NAMES = list(CHECK_LABELS)
@@ -76,6 +77,11 @@ def _supplier_filter(supplier: str | None, col_name: str = "supplier_name", col_
     return f" AND strip_accents(lower({col_name})) LIKE strip_accents(lower(?))", [f"%{s}%"]
 
 
+def _mart_tables() -> str:
+    """The marts and their documented columns (transform/models/marts/_marts.yml), for run_sql."""
+    return ", ".join(f"{m.name}({', '.join(m.columns)})" for m in project().layer("marts"))
+
+
 class AuditTools:
     """Tool implementations. `lang` picks the language of flag titles (ro/en)."""
 
@@ -88,12 +94,12 @@ class AuditTools:
         s = self.store
         head = s.df("""SELECT COUNT(*) AS invoices, COUNT(DISTINCT supplier_cui) AS suppliers,
                               MIN(issue_date) AS first_date, MAX(issue_date) AS last_date,
-                              ROUND(SUM(COALESCE(amount_ron, payable)), 2) AS total_spend_ron,
+                              ROUND(SUM(spend_ron), 2) AS total_spend_ron,
                               CAST(SUM(CASE WHEN is_credit_note THEN 1 ELSE 0 END) AS INTEGER) AS credit_notes,
                               ANY_VALUE(buyer_name) AS company
-                       FROM invoices""")
+                       FROM fct_invoices""")
         flags = s.df("""SELECT check_name, severity, COUNT(*) AS n, ROUND(SUM(COALESCE(amount_at_risk_ron,0)),2) AS amount
-                        FROM flags_view WHERE status <> 'dismissed' GROUP BY 1, 2""")
+                        FROM fct_flags WHERE status <> 'dismissed' GROUP BY 1, 2""")
         run = s.df("SELECT run_id, finished_at FROM runs ORDER BY finished_at DESC LIMIT 1")
         rec = _records(head)[0]
         rec["flags_total"] = int(flags["n"].sum()) if not flags.empty else 0
@@ -127,7 +133,7 @@ class AuditTools:
         sf, sp = _supplier_filter(supplier)
         sql = f"""SELECT flag_id, severity, check_name, rule, supplier_name, invoice_numbers, issue_date,
                          amount_at_risk_ron, title_{self.lang} AS title, status
-                  FROM flags_view WHERE {' AND '.join(where)}{sf}
+                  FROM fct_flags WHERE {' AND '.join(where)}{sf}
                   ORDER BY CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, score DESC,
                            amount_at_risk_ron DESC NULLS LAST"""
         df = self.store.df(sql, params + sp)
@@ -138,7 +144,7 @@ class AuditTools:
                 "flags": _records(df, limit)}
 
     def get_flag(self, flag_id: str) -> dict:
-        df = self.store.df("SELECT * FROM flags_view WHERE flag_id = ?", [flag_id.strip()])
+        df = self.store.df("SELECT * FROM fct_flags WHERE flag_id = ?", [flag_id.strip()])
         if df.empty:
             return {"error": f"No flag with id {flag_id}"}
         r = _records(df)[0]
@@ -171,24 +177,22 @@ class AuditTools:
             where.append("i.issue_date <= ?")
             params.append(date_to)
         if min_amount is not None:
-            where.append("COALESCE(i.amount_ron, i.payable) >= ?")
+            where.append("i.spend_ron >= ?")
             params.append(float(min_amount))
         if max_amount is not None:
-            where.append("COALESCE(i.amount_ron, i.payable) <= ?")
+            where.append("i.spend_ron <= ?")
             params.append(float(max_amount))
         sf, sp = _supplier_filter(supplier, "i.supplier_name", "i.supplier_cui")
-        flag_join = """LEFT JOIN (SELECT k AS invoice_key, COUNT(*) AS n_flags
-                                  FROM (SELECT unnest(from_json(invoice_keys, '["VARCHAR"]')) AS k
-                                        FROM flags_view WHERE status <> 'dismissed')
-                                  GROUP BY 1) fl
+        flag_join = """LEFT JOIN (SELECT invoice_key, COUNT(*) AS n_flags FROM fct_flag_invoices
+                                  WHERE status <> 'dismissed' GROUP BY 1) fl
                        ON fl.invoice_key = i.invoice_key"""
         if flagged_only:
             where.append("fl.n_flags > 0")
         order = "amount_ron DESC" if order_by == "amount" else "i.issue_date DESC"
         sql = f"""SELECT i.number, i.issue_date, i.supplier_name, i.supplier_cui, i.currency, i.payable,
-                         ROUND(COALESCE(i.amount_ron, i.payable), 2) AS amount_ron, i.is_credit_note,
+                         ROUND(i.spend_ron, 2) AS amount_ron, i.is_credit_note,
                          COALESCE(fl.n_flags, 0) AS n_flags
-                  FROM invoices i {flag_join}
+                  FROM fct_invoices i {flag_join}
                   WHERE {' AND '.join(where)}{sf} ORDER BY {order}"""
         df = self.store.df(sql, params + sp)
         limit = max(1, min(int(limit or 20), 100))
@@ -200,8 +204,8 @@ class AuditTools:
         heads = self.store.df(
             f"""SELECT invoice_key, number, issue_date, due_date, type_code, is_credit_note, currency, supplier_name,
                        supplier_cui, supplier_iban, payable, tax_total, tax_exclusive, fx_to_ron,
-                       ROUND(COALESCE(amount_ron, payable), 2) AS amount_ron, anaf_id, note
-                FROM invoices WHERE upper(number) = upper(?){sf} ORDER BY issue_date""", [number.strip()] + sp)
+                       ROUND(spend_ron, 2) AS amount_ron, anaf_id, note
+                FROM fct_invoices WHERE upper(number) = upper(?){sf} ORDER BY issue_date""", [number.strip()] + sp)
         if heads.empty:
             return {"error": f"No invoice numbered {number}"}
         out = []
@@ -210,10 +214,11 @@ class AuditTools:
             h["supplier_iban"] = mask_iban(h["supplier_iban"])
             lines = self.store.df(
                 """SELECT line_no, item_name, quantity, unit_code, unit_price, net_amount, vat_category, vat_rate
-                   FROM invoice_lines WHERE invoice_key = ? ORDER BY TRY_CAST(line_no AS INTEGER), line_no""", [key])
+                   FROM fct_invoice_lines WHERE invoice_key = ? ORDER BY TRY_CAST(line_no AS INTEGER), line_no""", [key])
             flags = self.store.df(
-                f"""SELECT flag_id, severity, check_name, title_{self.lang} AS title FROM flags_view
-                    WHERE list_contains(from_json(invoice_keys, '["VARCHAR"]'), ?) AND status <> 'dismissed'""", [key])
+                f"""SELECT f.flag_id, f.severity, f.check_name, f.title_{self.lang} AS title
+                    FROM fct_flag_invoices fi JOIN fct_flags f USING (flag_id)
+                    WHERE fi.invoice_key = ? AND f.status <> 'dismissed' ORDER BY f.flag_id""", [key])
             h["lines"] = _records(lines, 50)
             h["flags"] = _records(flags)
             out.append(h)
@@ -221,26 +226,26 @@ class AuditTools:
 
     def supplier_summary(self, supplier: str) -> dict:
         sf, sp = _supplier_filter(supplier)
-        sups = self.store.df(f"""SELECT supplier_cui, ANY_VALUE(supplier_name) AS supplier_name, COUNT(*) AS invoices,
-                                        ROUND(SUM(COALESCE(amount_ron, payable)), 2) AS total_spend_ron,
-                                        ROUND(AVG(COALESCE(amount_ron, payable)), 2) AS average_invoice_ron,
-                                        MIN(issue_date) AS first_invoice, MAX(issue_date) AS last_invoice
-                                 FROM invoices WHERE 1=1{sf} GROUP BY 1 ORDER BY total_spend_ron DESC""", sp)
+        # match any name the supplier has used, not only the latest
+        sups = self.store.df(f"""SELECT supplier_cui, supplier_name, invoices, ROUND(total_spend_ron, 2) AS total_spend_ron,
+                                        ROUND(average_invoice_ron, 2) AS average_invoice_ron, first_invoice, last_invoice
+                                 FROM dim_suppliers
+                                 WHERE supplier_cui IN (SELECT supplier_cui FROM fct_invoices WHERE 1=1{sf})
+                                 ORDER BY total_spend_ron DESC""", sp)
         if sups.empty:
             return {"error": f"No supplier matching {supplier!r}"}
         out = []
         for s in _records(sups, 3):
             cui = s["supplier_cui"]
             monthly = self.store.df(
-                """SELECT strftime(issue_date, '%Y-%m') AS month, COUNT(*) AS invoices,
-                          ROUND(SUM(COALESCE(amount_ron, payable)), 2) AS spend_ron
-                   FROM invoices WHERE supplier_cui = ? GROUP BY 1 ORDER BY 1""", [cui])
+                """SELECT month, invoices, ROUND(spend_ron, 2) AS spend_ron
+                   FROM mart_supplier_monthly_spend WHERE supplier_cui = ? ORDER BY month""", [cui])
             ibans = self.store.df(
-                """SELECT supplier_iban, COUNT(*) AS invoices, MIN(issue_date) AS first_used, MAX(issue_date) AS last_used
-                   FROM invoices WHERE supplier_cui = ? AND supplier_iban <> '' GROUP BY 1 ORDER BY first_used""", [cui])
+                """SELECT supplier_iban, invoices, first_used, last_used
+                   FROM dim_supplier_bank_accounts WHERE supplier_cui = ? ORDER BY first_used""", [cui])
             ibans["supplier_iban"] = ibans["supplier_iban"].map(mask_iban)
             flags = self.store.df(
-                f"""SELECT flag_id, severity, check_name, amount_at_risk_ron, title_{self.lang} AS title FROM flags_view
+                f"""SELECT flag_id, severity, check_name, amount_at_risk_ron, title_{self.lang} AS title FROM fct_flags
                     WHERE supplier_cui LIKE ? AND status <> 'dismissed'
                     ORDER BY CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END""", [f"%{cui}%"])
             s["monthly_spend"] = _records(monthly)
@@ -257,9 +262,10 @@ class AuditTools:
         if date_to:
             where.append("issue_date <= ?")
             params.append(date_to)
-        df = self.store.df(f"""SELECT supplier_name, supplier_cui, COUNT(*) AS invoices,
-                                      ROUND(SUM(COALESCE(amount_ron, payable)), 2) AS spend_ron
-                               FROM invoices WHERE {' AND '.join(where)} GROUP BY 1, 2 ORDER BY spend_ron DESC""", params)
+        df = self.store.df(f"""SELECT d.supplier_name, i.supplier_cui, COUNT(*) AS invoices,
+                                      ROUND(SUM(i.spend_ron), 2) AS spend_ron
+                               FROM fct_invoices i JOIN dim_suppliers d USING (supplier_cui)
+                               WHERE {' AND '.join(where)} GROUP BY 1, 2 ORDER BY spend_ron DESC""", params)
         total = float(df["spend_ron"].sum()) if not df.empty else 0.0
         df["share_pct"] = (df["spend_ron"] / total * 100).round(1) if total else 0.0
         return {"total_spend_ron": round(total, 2), "suppliers": _records(df, max(1, min(int(limit or 10), 50)))}
@@ -275,7 +281,7 @@ class AuditTools:
             params.append(date_to)
         sf, sp = _supplier_filter(supplier)
         df = self.store.df(f"""SELECT flag_id, rule, supplier_name, issue_date, amount_at_risk_ron, evidence
-                               FROM flags_view WHERE {' AND '.join(where)}{sf}""", params + sp)
+                               FROM fct_flags WHERE {' AND '.join(where)}{sf}""", params + sp)
         items = []
         for r in df.itertuples(index=False):
             ev = json.loads(r.evidence)
@@ -319,8 +325,8 @@ class AuditTools:
             params.append(date_to)
         sf, sp = _supplier_filter(supplier)
         df = self.store.df(f"""SELECT {period} AS period, COUNT(*) AS invoices,
-                                      ROUND(SUM(COALESCE(amount_ron, payable)), 2) AS spend_ron
-                               FROM invoices WHERE {' AND '.join(where)}{sf} GROUP BY 1 ORDER BY 1""", params + sp)
+                                      ROUND(SUM(spend_ron), 2) AS spend_ron
+                               FROM fct_invoices WHERE {' AND '.join(where)}{sf} GROUP BY 1 ORDER BY 1""", params + sp)
         return {"granularity": granularity, "series": _records(df)}
 
     def run_sql(self, query: str) -> dict:
@@ -378,10 +384,7 @@ class AuditTools:
                      self.spend_over_time, {"supplier": sup_doc, "date_from": date_doc, "date_to": date_doc,
                                             "granularity": "month, quarter or year"}),
             ToolSpec("run_sql", "Read-only DuckDB SELECT for questions the other tools cannot answer (max 200 rows). Tables: "
-                     "invoices(invoice_key, number, issue_date, supplier_name, supplier_cui, currency, payable, amount_ron, "
-                     "tax_total, is_credit_note), invoice_lines(invoice_key, item_name, quantity, unit_price, net_amount, "
-                     "vat_rate), flags_view(flag_id, check_name, rule, severity, supplier_name, issue_date, "
-                     "amount_at_risk_ron, title_ro, title_en, status).",
+                     f"{_mart_tables()}. Column descriptions: duckdb_columns().comment.",
                      self.run_sql, {"query": "A single SELECT statement"}),
         ]
 

@@ -23,7 +23,7 @@ ROUTES = [
     ("ultimul trimestru", "spend_over_time", {"granularity": "quarter"}),
     ("obiect JSON", "top_suppliers", {"limit": 1}),
     ("listă JSON", "list_flags", {"check": "vat", "limit": 50}),
-    ("most open flags", "run_sql", {"query": "SELECT supplier_name, COUNT(*) n FROM flags_view WHERE status <> 'dismissed' "
+    ("most open flags", "run_sql", {"query": "SELECT supplier_name, COUNT(*) n FROM fct_flags WHERE status <> 'dismissed' "
                                              "AND supplier_cui NOT LIKE '%,%' GROUP BY 1 ORDER BY n DESC, 1 LIMIT 1"}),
 ]
 

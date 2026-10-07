@@ -104,5 +104,5 @@ def test_buyer_filter_and_bad_files(tmp_path):
 
 def test_synthetic_dataset_imports_cleanly(demo):
     assert demo["store"].count_invoices() == demo["summary"]["invoices"]
-    eur = demo["store"].df("SELECT fx_to_ron FROM invoices WHERE currency = 'EUR'")
+    eur = demo["store"].df("SELECT fx_to_ron FROM fct_invoices WHERE currency = 'EUR'")
     assert not eur.empty and eur["fx_to_ron"].between(4.8, 5.2).all()

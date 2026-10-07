@@ -31,25 +31,19 @@ def _robust_z(x: pd.Series) -> tuple[pd.Series, float, float]:
 
 
 def invoice_features(ctx: AuditContext) -> pd.DataFrame:
-    inv = ctx.invoices[~ctx.invoices["is_credit_note"] & (ctx.invoices["amt"] > 0)].copy()
+    """int_invoice_features plus the transforms the models need (logs, per-supplier robust z)."""
+    inv = ctx.ref("int_invoice_features", order_by="supplier_cui, issue_date, invoice_key").copy()
     if inv.empty:
         return inv
-    n_lines = ctx.lines.groupby("invoice_key").size()
-    inv["n_lines"] = inv["invoice_key"].map(n_lines).fillna(1)
-    inv["log_amt"] = np.log1p(inv["amt"])
-    inv["log_mean_line"] = np.log1p(inv["amt"] / inv["n_lines"])
+    inv["log_amt"] = np.log1p(inv["spend_ron"])
+    inv["log_mean_line"] = np.log1p(inv["spend_ron"] / inv["n_lines"])
     inv["supplier_z"] = 0.0
     inv["supplier_median"] = np.nan
     for cui, idx in inv.groupby("supplier_cui").groups.items():
         z, med, _ = _robust_z(inv.loc[idx, "log_amt"])
         inv.loc[idx, "supplier_z"] = z.clip(-10, 10)
         inv.loc[idx, "supplier_median"] = np.expm1(med)
-    inv = inv.sort_values(["supplier_cui", "issue_date"])
-    gap = inv.groupby("supplier_cui")["issue_date"].diff().dt.days.fillna(30)
-    inv["log_gap_days"] = np.log1p(gap.clip(lower=0))
-    inv["day_of_month"] = inv["issue_date"].dt.day
-    net = inv["tax_exclusive"].replace(0, np.nan)
-    inv["vat_ratio"] = (inv["tax_total"] / net).fillna(0).clip(-1, 1)
+    inv["log_gap_days"] = np.log1p(inv["gap_days"])
     return inv
 
 
@@ -93,9 +87,9 @@ def run(ctx: AuditContext) -> tuple[list[dict], pd.DataFrame]:
             continue
         z, med_log, mad = _robust_z(part["log_amt"])
         med = float(np.expm1(med_log))
-        amts = part["amt"].to_numpy()
+        amts = part["spend_ron"].to_numpy()
         for pos, (idx, row) in enumerate(part.iterrows()):
-            ratio = row["amt"] / med if med else 0
+            ratio = row["spend_ron"] / med if med else 0
             others = np.delete(amts, pos)
             p95 = float(np.quantile(others, 0.95)) if len(others) else 0.0
             if mad == 0:
@@ -105,19 +99,19 @@ def run(ctx: AuditContext) -> tuple[list[dict], pd.DataFrame]:
                 zval = float(z[idx])
                 # wide, multi-modal suppliers (short and long routes) hide big invoices from z-scores,
                 # so also flag amounts far above the supplier's usual upper range
-                hit = (zval >= z_thr and ratio >= 2) or (p95 > 0 and row["amt"] >= 2 * p95 and ratio >= 3)
+                hit = (zval >= z_thr and ratio >= 2) or (p95 > 0 and row["spend_ron"] >= 2 * p95 and ratio >= 3)
             if not hit:
                 continue
-            sev = "high" if ratio >= 5 or row["amt"] - med >= 50_000 else "medium"
+            sev = "high" if ratio >= 5 or row["spend_ron"] - med >= 50_000 else "medium"
             explained.add(row["invoice_key"])
             flags.append(make_flag(
                 check="outlier", rule="supplier_amount", severity=sev, score=min(1.0, 0.5 + ratio / 20),
                 supplier_cui=cui, supplier_name=row["supplier_name"], invoice_keys=[row["invoice_key"]],
-                invoice_numbers=[row["number"]], issue_date=row["issue_date"], amount_at_risk=row["amt"] - med,
-                title_en=f"Invoice {row['number']} is {ratio:.1f}x this supplier's usual amount ({lei(row['amt'])} vs {lei(med)})",
-                title_ro=f"Factura {row['number']} este de {f'{ratio:.1f}'.replace('.', ',')} ori valoarea obișnuită a furnizorului ({lei(row['amt'], 'ro')} față de {lei(med, 'ro')})",
+                invoice_numbers=[row["number"]], issue_date=row["issue_date"], amount_at_risk=row["spend_ron"] - med,
+                title_en=f"Invoice {row['number']} is {ratio:.1f}x this supplier's usual amount ({lei(row['spend_ron'])} vs {lei(med)})",
+                title_ro=f"Factura {row['number']} este de {f'{ratio:.1f}'.replace('.', ',')} ori valoarea obișnuită a furnizorului ({lei(row['spend_ron'], 'ro')} față de {lei(med, 'ro')})",
                 evidence={
-                    "amount_ron": round(float(row["amt"]), 2),
+                    "amount_ron": round(float(row["spend_ron"]), 2),
                     "supplier_median_ron": round(med, 2),
                     "ratio_to_median": round(float(ratio), 2),
                     "robust_z": None if zval == float("inf") else round(zval, 2),
@@ -135,23 +129,23 @@ def run(ctx: AuditContext) -> tuple[list[dict], pd.DataFrame]:
     for group, g in ln.groupby("item_group"):
         if len(g) < 5:
             continue
-        mq, mp = g["quantity"].median(), g["price"].median()
-        mn = (g["quantity"] * g["price"]).median()
+        mq, mp = g["quantity"].median(), g["price_ron"].median()
+        mn = (g["quantity"] * g["price_ron"]).median()
         for _, row in g.iterrows():
             q_ratio = row["quantity"] / mq if mq else 0
-            p_ratio = row["price"] / mp if mp else 0
-            n_ratio = row["quantity"] * row["price"] / mn if mn else 0
+            p_ratio = row["price_ron"] / mp if mp else 0
+            n_ratio = row["quantity"] * row["price_ron"] / mn if mn else 0
             if q_ratio >= shift and n_ratio >= shift / 2:
                 what, ratio = "quantity", q_ratio
             elif p_ratio >= shift:  # unit prices of one item rarely vary 8x, whatever the quantity
                 what, ratio = "unit price", p_ratio
             else:
                 continue
-            line_net = float(row["quantity"] * row["price"])
+            line_net = float(row["quantity"] * row["price_ron"])
             hits.setdefault(row["invoice_key"], []).append({
                 "line": row["item_name"], "label": row["item_label"], "field": what,
                 "quantity": float(row["quantity"]), "usual_quantity": float(mq),
-                "unit_price_ron": round(float(row["price"]), 4), "usual_unit_price_ron": round(float(mp), 4),
+                "unit_price_ron": round(float(row["price_ron"]), 4), "usual_unit_price_ron": round(float(mp), 4),
                 "line_amount_ron": round(line_net, 2), "usual_line_amount_ron": round(float(mn), 2),
                 "ratio": round(float(ratio), 1),
             })
@@ -196,7 +190,7 @@ def run(ctx: AuditContext) -> tuple[list[dict], pd.DataFrame]:
                 title_en=f"Invoice {row['number']} looks unusual overall ({row['top_features']})",
                 title_ro=f"Factura {row['number']} pare neobișnuită în ansamblu ({row['top_features']})",
                 evidence={
-                    "amount_ron": round(float(row["amt"]), 2),
+                    "amount_ron": round(float(row["spend_ron"]), 2),
                     "supplier_median_ron": round(float(row["supplier_median"]), 2),
                     "isolation_forest_percentile": round(float(row["iforest"]), 3),
                     "autoencoder_percentile": round(float(row["autoencoder"]), 3),

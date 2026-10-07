@@ -18,7 +18,7 @@ import pandas as pd
 
 from .base import AuditContext, lei, make_flag
 
-ZERO_CATS = {"Z", "E", "AE", "K", "G", "O"}
+ZERO_CATS = {"Z", "E", "AE", "K", "G", "O"}   # also in transform/models/intermediate/int_vat_subtotals.sql
 CLASS_RO = {"standard": "cotă standard", "reduced": "cotă redusă", "reduced_5": "cotă redusă 5%", "zero": "cotă zero",
             "unknown": "necunoscută"}
 
@@ -86,35 +86,26 @@ def run(ctx: AuditContext) -> list[dict]:
                 {"line": row.item_name, "rate": float(row.vat_rate) if row.vat_rate is not None else None,
                  "usual_class": usual, "this_class": row.vclass, "history_lines": int(len(g)), "usual_share": round(float(share), 2)})
 
-    # --- arithmetic (vectorised; only problem invoices are looked at row by row) ---------------
-    v = ctx.vat.merge(ctx.invoices[["invoice_key", "fx_to_ron"]], on="invoice_key", how="inner")
-    if not v.empty:
-        v["fx"] = v["fx_to_ron"].fillna(1.0)
-        v["cat"] = v["category"].fillna("").str.upper()
-        v["expected"] = (v["taxable"] * v["rate"].fillna(0) / 100).round(2)
-        skip = v["rate"].isna() | (v["cat"].isin(ZERO_CATS) & (v["tax"] == 0))
-        v["bad"] = ~skip & ((v["expected"] - v["tax"]).abs() * v["fx"] > tol)
-        sums = v.groupby("invoice_key")["tax"].sum()
-        heads = ctx.invoices.set_index("invoice_key")
-        fxs = heads["fx_to_ron"].fillna(1.0)
-        total_bad = ((sums - heads.loc[sums.index, "tax_total"]).abs() * fxs.loc[sums.index] > tol)
-        gross_bad = ((heads["tax_exclusive"] + heads["tax_total"] - heads["tax_inclusive"]).abs() * fxs > tol)
-        suspects = set(v.loc[v["bad"], "invoice_key"]) | set(total_bad[total_bad].index) | set(gross_bad[gross_bad].index)
-        for key in suspects:
-            head = heads.loc[key]
-            problems = [
-                {"category": r.category, "rate": float(r.rate), "taxable": r.taxable, "stated_vat": r.tax,
-                 "expected_vat": r.expected, "difference": round(r.tax - r.expected, 2)}
-                for r in v[(v["invoice_key"] == key) & v["bad"]].itertuples(index=False)
-            ]
-            if key in sums.index and bool(total_bad.get(key, False)):
-                problems.append({"stated_total_vat": head["tax_total"], "sum_of_subtotals": round(float(sums[key]), 2),
-                                 "difference": round(float(head["tax_total"] - sums[key]), 2)})
-            if bool(gross_bad.get(key, False)):
-                problems.append({"net": head["tax_exclusive"], "vat": head["tax_total"], "gross": head["tax_inclusive"],
-                                 "difference": round(float(head["tax_inclusive"] - head["tax_exclusive"] - head["tax_total"]), 2)})
-            if problems:
-                findings[(key, "arithmetic")].extend(problems)
+    # --- arithmetic: differences come from int_vat_subtotals / int_invoice_vat_totals ----------
+    v = ctx.ref("int_vat_subtotals", order_by="invoice_key, category, rate")
+    totals = ctx.ref("int_invoice_vat_totals").set_index("invoice_key")
+    bad = ~v["not_checkable"] & (v["difference_ron"] > tol)
+    total_bad = totals["subtotal_difference_ron"] > tol
+    gross_bad = totals["gross_difference_ron"] > tol
+    for key in set(v.loc[bad, "invoice_key"]) | set(totals.index[total_bad | gross_bad]):
+        t = totals.loc[key]
+        problems = [
+            {"category": r.category, "rate": float(r.rate), "taxable": r.taxable, "stated_vat": r.tax,
+             "expected_vat": r.expected_tax, "difference": round(r.tax - r.expected_tax, 2)}
+            for r in v[(v["invoice_key"] == key) & bad].itertuples(index=False)
+        ]
+        if total_bad[key]:
+            problems.append({"stated_total_vat": t["tax_total"], "sum_of_subtotals": round(float(t["subtotal_tax"]), 2),
+                             "difference": round(float(t["tax_total"] - t["subtotal_tax"]), 2)})
+        if gross_bad[key]:
+            problems.append({"net": t["tax_exclusive"], "vat": t["tax_total"], "gross": t["tax_inclusive"],
+                             "difference": round(float(t["tax_inclusive"] - t["tax_exclusive"] - t["tax_total"]), 2)})
+        findings[(key, "arithmetic")].extend(problems)
 
     # --- build flags (one per invoice and rule) ---------------------------------------------------
     flags = []

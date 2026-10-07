@@ -33,7 +33,7 @@ def test_tools_answer_from_sql(demo):
     assert t.supplier_summary("petrodrum")["suppliers"][0]["bank_accounts"][0]["supplier_iban"].count("*") > 8
     assert t.price_changes()["suppliers_ranked_by_increase"]
     assert t.spend_over_time(granularity="quarter")["series"][0]["period"].startswith("2025-Q")
-    assert t.run_sql("SELECT COUNT(*) AS n FROM invoices")["rows"][0]["n"] == ov["invoices"]
+    assert t.run_sql("SELECT COUNT(*) AS n FROM fct_invoices")["rows"][0]["n"] == ov["invoices"]
 
 
 @pytest.mark.parametrize("query", ["DROP TABLE invoices", "SELECT 1; DROP TABLE invoices",

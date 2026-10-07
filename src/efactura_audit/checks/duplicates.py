@@ -61,12 +61,12 @@ def run(ctx: AuditContext) -> list[dict]:
     credits = inv[inv["is_credit_note"]]
     flags: list[dict] = []
 
-    for cui, part in inv[~inv["is_credit_note"] & (inv["amt"].abs() >= min_amt)].groupby("supplier_cui"):
-        part = part.sort_values("amt").reset_index(drop=True)
+    for cui, part in inv[~inv["is_credit_note"] & (inv["spend_ron"].abs() >= min_amt)].groupby("supplier_cui"):
+        part = part.sort_values("spend_ron").reset_index(drop=True)
         # how often each exact (amount, lines) pattern recurs for this supplier — routine billing
         pattern_counts = Counter((round(a, 2), frozenset(fps.get(k, Counter()).items()))
-                                 for a, k in zip(part["amt"], part["invoice_key"]))
-        amts = part["amt"].to_numpy()
+                                 for a, k in zip(part["spend_ron"], part["invoice_key"]))
+        amts = part["spend_ron"].to_numpy()
         n = len(part)
         for i in range(n):
             j = i + 1
@@ -83,7 +83,7 @@ def run(ctx: AuditContext) -> list[dict]:
                 if sim < min_sim:
                     continue
                 rel = number_relation(a["number"], b["number"])
-                if abs(a["amt"]) < small_amt and rel == "different":
+                if abs(a["spend_ron"]) < small_amt and rel == "different":
                     continue   # small repeat purchases: only flag when the numbers also look related
                 first, second = (a, b) if (a["issue_date"], a["number"]) <= (b["issue_date"], b["number"]) else (b, a)
                 if rel == "same":
@@ -98,7 +98,7 @@ def run(ctx: AuditContext) -> list[dict]:
                 else:
                     continue
                 notes_en, notes_ro = [], []
-                pattern = (round(a["amt"], 2), frozenset(fps.get(a["invoice_key"], Counter()).items()))
+                pattern = (round(a["spend_ron"], 2), frozenset(fps.get(a["invoice_key"], Counter()).items()))
                 if pattern_counts[pattern] >= 3 and rel != "same":
                     if gap > 14:
                         continue   # routine billing, weeks apart: not worth a flag
@@ -106,7 +106,7 @@ def run(ctx: AuditContext) -> list[dict]:
                     notes_en.append(f"This supplier billed the same amount and lines {pattern_counts[pattern]} times; may be routine.")
                     notes_ro.append(f"Furnizorul a facturat aceeași sumă și aceleași linii de {pattern_counts[pattern]} ori; poate fi o facturare recurentă.")
                 cn = credits[(credits["supplier_cui"] == cui)
-                             & ((credits["amt"].abs() - abs(first["amt"])).abs() <= max(tol_ron, abs(first["amt"]) * 0.001))
+                             & ((credits["spend_ron"].abs() - abs(first["spend_ron"])).abs() <= max(tol_ron, abs(first["spend_ron"]) * 0.001))
                              & (credits["issue_date"] >= first["issue_date"] - pd.Timedelta(days=5))
                              & (credits["issue_date"] <= second["issue_date"] + pd.Timedelta(days=60))]
                 if not cn.empty:
@@ -114,7 +114,7 @@ def run(ctx: AuditContext) -> list[dict]:
                     rule += "_after_credit_note"
                     notes_en.append(f"Credit note {cn.iloc[0]['number']} cancels the same amount: likely a cancelled and reissued invoice.")
                     notes_ro.append(f"Nota de credit {cn.iloc[0]['number']} stornează aceeași sumă: probabil o factură anulată și reemisă.")
-                amount = float(second["amt"])
+                amount = float(second["spend_ron"])
                 name = second["supplier_name"]
                 flags.append(make_flag(
                     check="near_duplicate", rule=rule, severity=sev, score=score * (0.8 + 0.2 * sim),
@@ -125,8 +125,8 @@ def run(ctx: AuditContext) -> list[dict]:
                     title_en=f"Invoice {second['number']} matches {first['number']} ({lei(amount)}, {gap} days apart)",
                     title_ro=f"Factura {second['number']} seamănă cu {first['number']} ({lei(amount, 'ro')}, la {gap} zile distanță)",
                     evidence={
-                        "first": {"number": first["number"], "date": str(first["issue_date"].date()), "amount_ron": round(float(first["amt"]), 2), "anaf_id": first["anaf_id"]},
-                        "second": {"number": second["number"], "date": str(second["issue_date"].date()), "amount_ron": round(float(second["amt"]), 2), "anaf_id": second["anaf_id"]},
+                        "first": {"number": first["number"], "date": str(first["issue_date"].date()), "amount_ron": round(float(first["spend_ron"]), 2), "anaf_id": first["anaf_id"]},
+                        "second": {"number": second["number"], "date": str(second["issue_date"].date()), "amount_ron": round(float(second["spend_ron"]), 2), "anaf_id": second["anaf_id"]},
                         "days_apart": gap,
                         "number_relation": rel,
                         "line_similarity": round(sim, 3),

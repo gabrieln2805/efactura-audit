@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Written only by the importer, one row per parsed XML element. Never updated in place.
+    tables:
+      - name: invoices
+        identifier: raw_invoices
+        description: One row per imported invoice or credit note (credit-note amounts stored negative).
+      - name: invoice_lines
+        identifier: raw_invoice_lines
+        description: One row per invoice line, as on the document.
+      - name: vat_breakdown
+        identifier: raw_vat_breakdown
+        description: VAT subtotals per category and rate, as stated on the document.
+
+  - name: audit
+    description: Written by the audit engine (Python steps) and by reviewers in the app.
+    tables:
+      - name: item_groups
+        description: Output of item-name matching (Python, rapidfuzz), rebuilt on every audit.
+      - name: flags
+        description: Flags from the latest audit run.
+      - name: flag_feedback
+        description: Reviewer decisions per flag (confirmed / dismissed); kept across audits and resets.

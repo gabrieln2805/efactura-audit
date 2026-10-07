@@ -111,7 +111,7 @@ with st.sidebar:
     if not last.empty:
         st.caption(f"⏱ {str(last['finished_at'].iloc[0])[:16]}")
 
-n_inv = int(q("SELECT COUNT(*) AS n FROM invoices", _v=ss.data_version)["n"].iloc[0])
+n_inv = int(q("SELECT COUNT(*) AS n FROM fct_invoices", _v=ss.data_version)["n"].iloc[0])
 
 tabs = st.tabs([L("tab_overview"), L("tab_flags"), L("tab_invoices"), L("tab_suppliers"), L("tab_import"),
                 L("tab_report"), L("tab_assistant"), L("tab_settings")])
@@ -145,8 +145,8 @@ with tabs[0]:
             st.plotly_chart(chart_layout(fig), width="stretch", config={"displayModeBar": False})
         with right:
             st.markdown(f"**{L('monthly_spend')}**")
-            m = q("""SELECT strftime(issue_date, '%Y-%m') AS month, SUM(COALESCE(amount_ron, payable)) AS spend,
-                            COUNT(*) AS n FROM invoices GROUP BY 1 ORDER BY 1""", _v=ss.data_version)
+            m = q("""SELECT month, SUM(spend_ron) AS spend, SUM(invoices) AS n
+                     FROM mart_supplier_monthly_spend GROUP BY 1 ORDER BY 1""", _v=ss.data_version)
             fig = go.Figure(go.Bar(x=m["month"], y=m["spend"], marker=dict(color=BLUE, cornerradius=4),
                                    customdata=m["n"],
                                    hovertemplate="%{x}<br>%{y:,.0f} lei<br>%{customdata} " + L("invoices").lower() + "<extra></extra>"))
@@ -245,13 +245,13 @@ with tabs[1]:
                 st.markdown(f"**{L('invoices_involved')}**")
                 keys = json.loads(f["invoice_keys"])[:6]
                 for key in keys:
-                    h = q("SELECT number, issue_date, supplier_name, amount_ron, currency, payable, anaf_id FROM invoices WHERE invoice_key = ?",
+                    h = q("SELECT number, issue_date, supplier_name, amount_ron, currency, payable, anaf_id FROM fct_invoices WHERE invoice_key = ?",
                           (key,), _v=ss.data_version)
                     if h.empty:
                         continue
                     h = h.iloc[0]
                     with st.expander(f"{h['number']} · {str(h['issue_date'])[:10]} · {fmt_lei(h['amount_ron'], ss.lang)}"):
-                        lines = q("""SELECT item_name, quantity, unit_code, unit_price, net_amount, vat_rate FROM invoice_lines
+                        lines = q("""SELECT item_name, quantity, unit_code, unit_price, net_amount, vat_rate FROM fct_invoice_lines
                                      WHERE invoice_key = ? ORDER BY TRY_CAST(line_no AS INTEGER)""", (key,), _v=ss.data_version)
                         st.dataframe(lines, hide_index=True, width="stretch")
                         if h["anaf_id"]:
@@ -307,13 +307,9 @@ with tabs[3]:
     if n_inv == 0:
         st.info(L("no_data"))
     else:
-        sups = q("""SELECT i.supplier_name, i.supplier_cui, COUNT(*) AS invoices,
-                           ROUND(SUM(COALESCE(i.amount_ron, i.payable)), 2) AS spend_ron,
-                           MIN(i.issue_date) AS first_invoice, MAX(i.issue_date) AS last_invoice,
-                           COALESCE(ANY_VALUE(f.n), 0) AS flags
-                    FROM invoices i LEFT JOIN (SELECT supplier_cui, COUNT(*) AS n FROM flags_view
-                                               WHERE status <> 'dismissed' GROUP BY 1) f USING (supplier_cui)
-                    GROUP BY 1, 2 ORDER BY spend_ron DESC""", _v=ss.data_version)
+        sups = q("""SELECT supplier_name, supplier_cui, invoices, ROUND(total_spend_ron, 2) AS spend_ron,
+                           first_invoice, last_invoice, flags
+                    FROM dim_suppliers ORDER BY spend_ron DESC""", _v=ss.data_version)
         ev = st.dataframe(sups, hide_index=True, width="stretch", on_select="rerun", selection_mode="single-row",
                           key="sup_table", column_config={"spend_ron": st.column_config.NumberColumn(format="%.2f")})
         sel = ev.selection.rows if ev and ev.selection else []
@@ -355,6 +351,15 @@ with tabs[4]:
     if st.button(L("load_demo"), key="demo2"):
         load_demo()
         st.rerun()
+    tests = q("""SELECT status, test_name, model, failures, message FROM data_test_results
+                 ORDER BY status = 'pass', test_name""", _v=ss.data_version)
+    if not tests.empty:
+        st.markdown(f"**{L('data_checks')}**")
+        issues = tests[tests["status"] != "pass"]
+        if issues.empty:
+            st.caption(f"✅ {L('data_checks_ok', n=len(tests))}")
+        else:
+            st.dataframe(issues, hide_index=True, width="stretch")
     st.markdown(f"**{L('import_log')}**")
     st.dataframe(q("SELECT logged_at, status, source, message FROM import_log ORDER BY logged_at DESC LIMIT 200", _v=ss.data_version),
                  hide_index=True, width="stretch")

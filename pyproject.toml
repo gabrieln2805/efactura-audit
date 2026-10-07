@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "efactura-audit"
-version = "0.1.1"
+version = "0.2.0"
 description = "Local anomaly audit for Romanian RO e-Factura supplier invoices, with a private AI assistant."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,6 +24,7 @@ dependencies = [
     "streamlit>=1.32",
     "plotly>=5.18",
     "mcp>=1.2,<2",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -36,7 +37,14 @@ efactura-audit = "efactura_audit.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-efactura_audit = ["assistant/ro_taskset.json", "config_default.toml"]
+efactura_audit = [
+    "assistant/ro_taskset.json",
+    "config_default.toml",
+    "transform/models/*.yml",
+    "transform/models/*/*.sql",
+    "transform/models/*/*.yml",
+    "transform/data_tests/*.sql",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

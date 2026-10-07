@@ -11,6 +11,7 @@ from .checks import duplicates, outliers, prices, suppliers, vat
 from .checks.base import AuditContext
 from .itemmatch import assign_item_groups, link_across_suppliers
 from .store import Store
+from .transform import TestResult
 
 CHECKS = ("near_duplicate", "price_increase", "outlier", "vat", "supplier")
 
@@ -23,6 +24,7 @@ class AuditResult:
     by_check: dict[str, int] = field(default_factory=dict)
     by_severity: dict[str, int] = field(default_factory=dict)
     seconds: float = 0.0
+    data_tests: list[TestResult] = field(default_factory=list)
 
     def summary(self) -> str:
         parts = ", ".join(f"{k}: {v}" for k, v in self.by_check.items())
@@ -30,24 +32,27 @@ class AuditResult:
         return f"{self.n_invoices} invoices audited, {len(self.flags)} flags ({parts}) — severity {sev}"
 
 
+def match_items(store: Store, settings: dict) -> None:
+    """Python model: group lines into items (per supplier and across suppliers) and write ``item_groups``.
+
+    Reads ``int_invoice_lines``; ``fct_invoice_lines`` joins the result back to the lines.
+    """
+    lines = store.df("SELECT * FROM int_invoice_lines ORDER BY issue_date, invoice_key, line_no")
+    if lines.empty:
+        store.save_item_groups(pd.DataFrame())
+        return
+    thr = float(settings.get("prices", {}).get("name_match_score", 88))
+    lines = assign_item_groups(lines, thr)
+    xmap = link_across_suppliers(lines[~lines["is_credit_note"]], thr + 2)
+    lines = lines.merge(xmap, on="item_group", how="left")
+    store.save_item_groups(lines[["invoice_key", "line_no", "item_group", "item_label", "xgroup"]])
+
+
 def build_context(store: Store, settings: dict) -> AuditContext:
-    inv = store.invoices()
-    lines = store.lines()
-    vat_df = store.vat()
-    for df in (inv, lines, vat_df):
-        if not df.empty:
-            df["issue_date"] = pd.to_datetime(df["issue_date"])
-    if not inv.empty:
-        inv["amt"] = inv["amount_ron"].fillna(inv["payable"])
-        inv["anaf_id"] = inv["anaf_id"].fillna("")
-    if not lines.empty:
-        lines["price"] = lines["unit_price_ron"].where(lines["unit_price_ron"].notna(),
-                                                       lines["unit_price"].where(lines["currency"] == "RON"))
-        thr = float(settings.get("prices", {}).get("name_match_score", 88))
-        lines = assign_item_groups(lines, thr)
-        xmap = link_across_suppliers(lines[~lines["is_credit_note"]], thr + 2)
-        lines = lines.merge(xmap, on="item_group", how="left")
-    return AuditContext(invoices=inv, lines=lines, vat=vat_df, settings=settings)
+    ctx = AuditContext(invoices=pd.DataFrame(), lines=pd.DataFrame(), settings=settings, store=store)
+    ctx.invoices = ctx.ref("fct_invoices", order_by="issue_date, invoice_key")
+    ctx.lines = ctx.ref("fct_invoice_lines", order_by="issue_date, invoice_key, line_no")
+    return ctx
 
 
 def consolidate(flags: list[dict]) -> list[dict]:
@@ -71,13 +76,14 @@ def consolidate(flags: list[dict]) -> list[dict]:
 def run_audit(store: Store, settings: dict, checks: tuple[str, ...] = CHECKS) -> AuditResult:
     started = datetime.now()
     run_id = f"run-{started:%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:4]}"
+    match_items(store, settings)
     ctx = build_context(store, settings)
     result = AuditResult(run_id=run_id, n_invoices=len(ctx.invoices))
     if ctx.invoices.empty:
         store.replace_flags(run_id, [], started, 0, {})
+        result.data_tests = store.run_data_tests()
         return result
 
-    store.save_item_groups(ctx.lines[["invoice_key", "line_no", "item_group"]])
     flags: list[dict] = []
     scores = pd.DataFrame()
     if "near_duplicate" in checks:
@@ -99,6 +105,7 @@ def run_audit(store: Store, settings: dict, checks: tuple[str, ...] = CHECKS) ->
     store.replace_flags(run_id, flags, started, len(ctx.invoices), {"checks": list(checks), "settings": settings})
     if not scores.empty:
         store.save_scores(scores)
+    result.data_tests = store.run_data_tests()
 
     result.flags = flags
     for f in flags:

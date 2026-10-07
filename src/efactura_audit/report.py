@@ -63,18 +63,13 @@ def _check_label(check: str, lang: str) -> str:
 
 
 def gather(store: Store) -> dict:
-    inv = store.df("SELECT * FROM invoices")
+    inv = store.df("SELECT * FROM fct_invoices")
     flags = store.flags(include_dismissed=False)
     sup = store.df(
-        """SELECT supplier_name, supplier_cui, COUNT(*) AS n, SUM(COALESCE(amount_ron, payable)) AS spend
-           FROM invoices GROUP BY 1, 2 ORDER BY spend DESC"""
+        """SELECT supplier_name, supplier_cui, invoices AS n, total_spend_ron AS spend, flags AS nflags,
+                  amount_to_review_ron AS risk
+           FROM dim_suppliers ORDER BY spend DESC"""
     )
-    if not flags.empty:
-        fcount = flags.groupby("supplier_cui").agg(nflags=("flag_id", "size"), risk=("amount_at_risk_ron", "sum"))
-        sup = sup.merge(fcount, left_on="supplier_cui", right_index=True, how="left")
-    else:
-        sup["nflags"], sup["risk"] = 0, 0.0
-    sup[["nflags", "risk"]] = sup[["nflags", "risk"]].fillna(0)
     buyer = inv["buyer_name"].mode().iloc[0] if not inv.empty else ""
     return {
         "invoices": inv,
@@ -82,7 +77,7 @@ def gather(store: Store) -> dict:
         "suppliers": sup,
         "buyer": buyer,
         "period": (str(inv["issue_date"].min())[:10], str(inv["issue_date"].max())[:10]) if not inv.empty else ("", ""),
-        "spend": float(inv["amount_ron"].fillna(inv["payable"]).sum()) if not inv.empty else 0.0,
+        "spend": float(inv["spend_ron"].sum()) if not inv.empty else 0.0,
     }
 
 

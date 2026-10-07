@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: stg_invoices
+    description: One row per invoice or credit note. Credit notes carry negative amounts.
+    columns:
+      - name: invoice_key
+        description: Stable key (supplier CUI, normalised number, issue date, invoice/credit note)
+        data_tests: [unique, not_null]
+      - name: issue_date
+        data_tests: [not_null]
+      - name: supplier_cui
+        description: Supplier fiscal code, digits only
+        data_tests: [not_null]
+      - name: currency
+        data_tests: [not_null]
+      - name: is_credit_note
+        data_tests: [not_null]
+      - name: spend_ron
+        description: Amount payable in lei (RON); in the document currency when no RON rate can be derived
+        data_tests: [not_null]
+
+  - name: stg_invoice_lines
+    description: One row per invoice line, as on the document.
+    columns:
+      - name: invoice_key
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_invoices')
+              field: invoice_key
+      - name: vat_category
+        data_tests:
+          - accepted_values:
+              values: [S, Z, E, AE, K, G, O, L, M]
+              config: {severity: warn}
+
+  - name: stg_vat_breakdown
+    description: VAT subtotals per invoice, category and rate.
+    columns:
+      - name: invoice_key
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_invoices')
+              field: invoice_key

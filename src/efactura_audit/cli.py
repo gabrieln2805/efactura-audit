@@ -3,6 +3,8 @@
   demo         generate synthetic invoices, import, audit and score against the ground truth
   import       import ANAF ZIPs / XML files or folders
   audit        run the five checks
+  build        rebuild the SQL models (staging, intermediate, marts) and run the data tests
+  explore      browse the tables and models in DuckDB's web UI (read-only)
   report       write the Excel and PDF report
   app          open the local web app (Streamlit)
   mcp          run the MCP server (stdio) for MCP clients
@@ -65,6 +67,8 @@ def cmd_import(args):
         print("  error:", e)
     if args.audit and res.imported:
         cmd_audit(args)
+    else:
+        _print_data_tests(store.run_data_tests())
 
 
 def cmd_audit(args):
@@ -72,6 +76,56 @@ def cmd_audit(args):
     ws, store = _ws_store(args)
     res = run_audit(store, ws.settings)
     print(res.summary(), f"({res.seconds:.1f}s)")
+    _print_data_tests(res.data_tests)
+
+
+def _print_data_tests(results, show_all: bool = False) -> None:
+    issues = [r for r in results if r.status != "pass"]
+    print(f"Data tests: {len(results) - len(issues)} passed, {len(issues)} with issues")
+    for r in results if show_all else issues:
+        detail = f"{r.failures} rows" if r.status in ("warn", "fail") else r.message
+        print(f"  {r.status.upper():<5} {r.name}" + (f" ({detail})" if r.status != "pass" else ""))
+        if r.status in ("warn", "fail") and r.message:
+            print(f"        {r.message}")
+
+
+def cmd_explore(args):
+    """Browse the workspace's tables and models in DuckDB's local web UI, read-only."""
+    import time
+    import webbrowser
+
+    import duckdb
+    ws, _ = _ws_store(args)   # opening the store migrates the workspace and builds the models
+    # in-memory main database: the UI caches results in an attached in-memory database, which DuckDB
+    # refuses to create from a read-only file connection
+    con = duckdb.connect()
+    con.execute("INSTALL ui")
+    con.execute("ATTACH '{}' AS audit (READ_ONLY)".format(ws.db_path.as_posix().replace("'", "''")))
+    con.execute("USE audit")
+    msg = con.execute("CALL start_ui_server()").fetchone()[0]
+    if "http" not in msg:
+        print(f"{msg}. Close the other DuckDB UI first.")
+        return
+    url = msg[msg.index("http"):].strip()
+    print(f"DuckDB UI: {url}  (database 'audit', read-only)", flush=True)
+    print("The page is loaded from ui.duckdb.org; queries run on this computer.")
+    print("While it is open the app cannot save audits or reviews. Press Ctrl+C here to close it.", flush=True)
+    webbrowser.open(url)
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        con.execute("CALL stop_ui_server()")
+        print("Closed.")
+
+
+def cmd_build(args):
+    from .transform import project
+    _, store = _ws_store(args)
+    store.build_models(force=True)
+    for layer in ("staging", "intermediate", "marts"):
+        print(f"{layer:<13} {', '.join(sorted(m.name for m in project().layer(layer)))}")
+    _print_data_tests(store.run_data_tests(), show_all=args.verbose)
 
 
 def cmd_report(args):
@@ -223,6 +277,13 @@ def main(argv: list[str] | None = None) -> None:
 
     s = sub.add_parser("audit", help="run the anomaly checks")
     s.set_defaults(fn=cmd_audit)
+
+    s = sub.add_parser("build", help="rebuild the SQL models and run the data tests")
+    s.add_argument("--verbose", "-v", action="store_true", help="list passing tests too")
+    s.set_defaults(fn=cmd_build)
+
+    s = sub.add_parser("explore", help="browse the tables and models in DuckDB's web UI (read-only)")
+    s.set_defaults(fn=cmd_explore)
 
     s = sub.add_parser("report", help="write Excel/PDF report")
     s.add_argument("--lang", choices=["ro", "en"], default="ro")

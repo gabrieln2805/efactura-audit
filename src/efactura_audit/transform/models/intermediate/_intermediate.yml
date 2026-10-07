@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: int_invoice_lines
+    description: Invoice lines with their invoice header and a unit price in lei. Input to item-name matching.
+    columns:
+      - name: price_ron
+        description: Unit price in lei; null for a foreign-currency line without a RON rate
+
+  - name: int_invoice_features
+    description: Per-invoice features for the unusual-amount check (invoices with a positive amount only).
+    columns:
+      - name: invoice_key
+        data_tests: [unique, not_null]
+      - name: n_lines
+        description: Number of lines (1 when the invoice has none)
+      - name: gap_days
+        description: Days since the supplier's previous invoice (30 for the first one)
+      - name: vat_ratio
+        description: VAT / net amount, clipped to [-1, 1]
+
+  - name: int_vat_subtotals
+    description: VAT subtotals with the VAT expected from taxable amount x rate, and the difference in lei.
+    columns:
+      - name: expected_tax
+        description: taxable x rate / 100, rounded half-even to 2 decimals
+      - name: difference_ron
+        description: "|expected - stated VAT| in lei"
+      - name: not_checkable
+        description: True for subtotals without a rate, and zero-rated or exempt categories without VAT
+
+  - name: int_invoice_vat_totals
+    description: Per invoice, stated VAT total vs the sum of its subtotals, and net + VAT vs gross, in lei.
+    columns:
+      - name: invoice_key
+        data_tests: [unique, not_null]
+      - name: subtotal_difference_ron
+        description: "|sum of VAT subtotals - stated VAT total| in lei; null when the invoice has no subtotals"
+      - name: gross_difference_ron
+        description: "|net + VAT - gross| in lei"
+
+  - name: int_supplier_ibans
+    description: Bank accounts each supplier used, with first and last use, and how many suppliers share the account.
+    columns:
+      - name: suppliers_on_account
+        description: Number of different suppliers (CUIs) invoicing with this account

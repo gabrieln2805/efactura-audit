@@ -63,6 +63,8 @@ S = {
     "buyer_filter": ("CUI companie auditată (opțional, filtrează facturile altor cumpărători)",
                      "Audited company CUI (optional, skips invoices for other buyers)"),
     "import_log": ("Jurnal import", "Import log"),
+    "data_checks": ("Verificări ale datelor importate", "Checks on the imported data"),
+    "data_checks_ok": ("Toate cele {n} verificări ale datelor au trecut.", "All {n} data checks passed."),
     "anaf_window": ("ANAF păstrează mesajele în SPV aproximativ 60 de zile; pentru istoric mai lung importați arhiva proprie sau exportul din programul de contabilitate.",
                     "ANAF keeps SPV messages for about 60 days; for longer history import your own archive or an export from your accounting software."),
     "report_lang": ("Limba raportului", "Report language"),
