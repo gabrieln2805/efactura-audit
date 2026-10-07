@@ -16,7 +16,7 @@ it's finding out whether controllers will commit to a pilot. The validation kit 
 | App (Streamlit, RO/EN) | Done; runs on Gabriel's PC |
 | AI assistant + MCP server | Built; **no model approved yet** (Ollama not yet installed on the PC). MCP fixed (pinned `mcp<2`) |
 | Tests | 59 passing |
-| Version control | Git repo since 7 Oct 2026 (local only, no remote) |
+| Version control | Git since 7 Oct 2026; private GitHub repo gabrieln2805/efactura-audit (branch `main`) |
 | Real invoices | **Never tested.** First real data comes from a pilot |
 | Validation | Kit ready (outreach, interview script, demo walkthrough, tracker); **0 conversations so far** |
 | Employment IP check | **Not done**: required before any paid work |
@@ -47,7 +47,7 @@ In order. Owner in brackets.
 
 - Project: `D:\DS ML\efactura-audit`, virtualenv in `.venv` (Windows, PowerShell, Python 3.14). Claude Code
   running on the PC can use the `.venv` directly (tests, demo, CLI); a session that is only linked to the
-  folder can write files but not run it. Git repo on branch `main`, local only.
+  folder can write files but not run it. Git: `main`, pushed to the private repo github.com/gabrieln2805/efactura-audit.
 - Editable install (`pip install -e .`): code changes need only an app restart. **Stop the app before any
   pip install**, or Windows locks `efactura-audit.exe` (WinError 32).
 - An old app copy can keep port 8501 after its window closes. `efactura-audit app` now moves to the next free
