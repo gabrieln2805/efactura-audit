@@ -1,0 +1,55 @@
+# e-Factura Anomaly Audit — default settings.
+# Copy to <workspace>/config.toml and change only what you need; values there override these.
+
+[company]
+# The audited company's CUI (buyer). Leave empty to accept invoices for any buyer.
+buyer_cui = ""
+
+[duplicates]
+window_days = 120            # compare invoices from the same supplier within this many days
+amount_tolerance_ron = 0.05  # totals within this many lei are considered equal
+amount_tolerance_pct = 0.0   # ...or within this % (raise to catch duplicates with small edits)
+min_line_similarity = 0.85   # line-item similarity (0-1) needed to call two invoices near-duplicates
+min_amount_ron = 50          # ignore tiny invoices
+small_amount_ron = 250       # below this, only flag when the invoice numbers also look related
+
+[prices]
+min_history = 3              # prior observations of an item before we judge its price
+increase_threshold_pct = 8.0 # flag when unit price exceeds the historical median by more than this
+above_max_tolerance_pct = 2.0 # ...and is also above the historical max by more than this
+lookback_days = 365
+name_match_score = 88        # rapidfuzz token_set_ratio needed to merge two item descriptions
+cross_supplier_gap_pct = 25.0 # flag when one supplier charges this much more than another for the same item
+
+[outliers]
+min_history = 6              # invoices from a supplier before a per-supplier score is computed
+robust_z = 4.0               # median/MAD z-score on log(amount) above which an invoice is flagged
+model_contamination = 0.01   # share of invoices the global models treat as unusual
+decimal_shift_ratio = 8.0    # line amount ~10x/100x its usual level suggests a misplaced decimal
+
+[vat]
+# Romanian VAT rates by period (Law 141/2025 changed 19/9/5 to 21/11 from 2025-08-01).
+# A rate outside the valid set is flagged for review; transitional cases exist, so it is a prompt, not a verdict.
+arithmetic_tolerance_ron = 1.0
+rate_deviation_min_history = 4
+
+[[vat.periods]]
+start = "2017-01-01"
+end = "2025-07-31"
+rates = [19.0, 9.0, 5.0, 0.0]
+
+[[vat.periods]]
+start = "2025-08-01"
+end = "2099-12-31"
+rates = [21.0, 11.0, 0.0]
+
+[suppliers]
+new_supplier_grace_days = 90   # suppliers first seen in the first N days of data are not "new"
+new_supplier_min_amount_ron = 5000
+
+[assistant]
+default_provider = "ollama"
+ollama_url = "http://localhost:11434"
+max_tool_rounds = 6
+allow_untested_models = false  # only models that pass the Romanian task set are offered
+cloud_enabled = false          # cloud models are off by default; each needs the client's own API key

@@ -1,0 +1,155 @@
+"""UI strings in Romanian (default) and English."""
+from __future__ import annotations
+
+S = {
+    "app_title": ("Audit anomalii e-Factura", "e-Factura anomaly audit"),
+    "language": ("Limbă", "Language"),
+    "workspace": ("Spațiu de lucru", "Workspace"),
+    "run_audit": ("Rulează auditul", "Run audit"),
+    "audit_done": ("Audit finalizat: {n} semnalări în {s:.1f}s.", "Audit finished: {n} flags in {s:.1f}s."),
+    "no_data": ("Nu există facturi încă. Importați arhivele ZIP descărcate din SPV (tabul Import) sau încărcați datele demo.",
+                "No invoices yet. Import the ZIP files downloaded from ANAF SPV (Import tab) or load the demo data."),
+    "load_demo": ("Încarcă date demo (sintetice)", "Load demo data (synthetic)"),
+    "demo_loaded": ("Date demo încărcate și auditate.", "Demo data loaded and audited."),
+    "local_only": ("Toate datele sunt procesate pe acest calculator.", "All data is processed on this computer."),
+    "tab_overview": ("Prezentare", "Overview"),
+    "tab_flags": ("Semnalări", "Flags"),
+    "tab_invoices": ("Facturi", "Invoices"),
+    "tab_suppliers": ("Furnizori", "Suppliers"),
+    "tab_import": ("Import", "Import"),
+    "tab_report": ("Raport", "Report"),
+    "tab_assistant": ("Asistent AI", "AI assistant"),
+    "tab_settings": ("Setări", "Settings"),
+    "invoices": ("Facturi", "Invoices"),
+    "suppliers": ("Furnizori", "Suppliers"),
+    "spend": ("Achiziții (cu TVA)", "Spend (incl. VAT)"),
+    "flags": ("Semnalări deschise", "Open flags"),
+    "to_review": ("Sumă de verificat", "Amount to review"),
+    "period": ("Perioada", "Period"),
+    "flags_by_check": ("Semnalări pe tip de verificare", "Flags by check"),
+    "monthly_spend": ("Achiziții pe lună (lei)", "Spend per month (lei)"),
+    "top_flags": ("Cele mai importante semnalări", "Most important flags"),
+    "disclaimer": ("Semnalările sunt indicii de verificat, nu concluzii.", "Flags are prompts to check, not conclusions."),
+    "check": ("Verificare", "Check"),
+    "severity": ("Importanță", "Severity"),
+    "supplier": ("Furnizor", "Supplier"),
+    "status": ("Stare", "Status"),
+    "min_amount": ("Sumă minimă de verificat (lei)", "Minimum amount to review (lei)"),
+    "search": ("Caută", "Search"),
+    "number": ("Număr factură", "Invoice number"),
+    "date": ("Data", "Date"),
+    "amount": ("Sumă (lei)", "Amount (lei)"),
+    "finding": ("Constatare", "Finding"),
+    "select_flag": ("Selectați o semnalare din tabel pentru detalii.", "Select a flag in the table to see details."),
+    "what_to_check": ("Ce trebuie verificat", "What to check"),
+    "evidence": ("Dovezi", "Evidence"),
+    "invoices_involved": ("Facturi implicate", "Invoices involved"),
+    "review": ("Revizuire", "Review"),
+    "note": ("Notă", "Note"),
+    "save": ("Salvează", "Save"),
+    "saved": ("Salvat.", "Saved."),
+    "price_history": ("Istoric preț unitar (lei)", "Unit price history (lei)"),
+    "show_dismissed": ("Arată și semnalările respinse", "Show dismissed flags"),
+    "lines": ("Linii factură", "Invoice lines"),
+    "from": ("De la", "From"),
+    "to": ("Până la", "To"),
+    "flagged_only": ("Doar facturi semnalate", "Flagged invoices only"),
+    "matching": ("{n} rezultate · total {amt}", "{n} results · total {amt}"),
+    "bank_accounts": ("Conturi bancare folosite", "Bank accounts used"),
+    "upload": ("Încărcați arhive ZIP din SPV sau fișiere XML", "Upload SPV ZIP archives or XML files"),
+    "folder": ("…sau calea unui folder de pe acest calculator", "…or the path of a folder on this computer"),
+    "import_btn": ("Importă", "Import"),
+    "imported": ("Import: {s}", "Import: {s}"),
+    "buyer_filter": ("CUI companie auditată (opțional, filtrează facturile altor cumpărători)",
+                     "Audited company CUI (optional, skips invoices for other buyers)"),
+    "import_log": ("Jurnal import", "Import log"),
+    "anaf_window": ("ANAF păstrează mesajele în SPV aproximativ 60 de zile; pentru istoric mai lung importați arhiva proprie sau exportul din programul de contabilitate.",
+                    "ANAF keeps SPV messages for about 60 days; for longer history import your own archive or an export from your accounting software."),
+    "report_lang": ("Limba raportului", "Report language"),
+    "make_excel": ("Generează Excel", "Build Excel"),
+    "make_pdf": ("Generează PDF", "Build PDF"),
+    "download": ("Descarcă", "Download"),
+    "ai_label": ("Răspunsuri generate de AI, doar descriptive — nu reprezintă consultanță fiscală sau contabilă. Cifrele provin din interogări SQL pe baza de date locală.",
+                 "AI-generated, descriptive answers only — not tax or accounting advice. Figures come from SQL queries on the local database."),
+    "provider": ("Furnizor model", "Model provider"),
+    "model": ("Model", "Model"),
+    "api_key": ("Cheie API proprie (rămâne doar în această sesiune)", "Your own API key (kept only for this session)"),
+    "transport": ("Acces la date", "Data access"),
+    "transport_local": ("Direct (în proces)", "Direct (in-process)"),
+    "transport_mcp": ("Prin serverul MCP", "Via the MCP server"),
+    "no_models": ("Niciun model aprobat pentru acest furnizor. Testați un model în Setări (setul de sarcini în română).",
+                  "No approved model for this provider. Test a model in Settings (Romanian task set)."),
+    "untested": ("netestat", "untested"),
+    "ask_placeholder": ("Întrebați despre facturi și semnalări…", "Ask about invoices and flags…"),
+    "sources": ("Surse: apeluri de instrumente ({n})", "Sources: tool calls ({n})"),
+    "cloud_warning": ("Model cloud: se trimit rezultatele instrumentelor (totaluri și semnalări, cu IBAN-uri mascate și numele persoanelor fizice pseudonimizate) către {p}, folosind cheia dumneavoastră.",
+                      "Cloud model: tool results (totals and flags, with IBANs masked and sole traders' names pseudonymised) are sent to {p} using your key."),
+    "local_model": ("Model local prin Ollama: nicio dată nu părăsește calculatorul.", "Local model via Ollama: no data leaves the computer."),
+    "clear_chat": ("Conversație nouă", "New conversation"),
+    "examples": ("Exemple", "Examples"),
+    "cloud_enable": ("Permite modele cloud (cu cheia API a clientului)", "Allow cloud models (client's own API key)"),
+    "allow_untested": ("Arată și modele netestate (doar pentru dezvoltare)", "Show untested models (development only)"),
+    "model_test": ("Test model în limba română", "Romanian model test"),
+    "model_test_help": ("Rulează setul de sarcini în română pe date sintetice. Doar modelele care trec sunt oferite în Asistent.",
+                        "Runs the Romanian task set on synthetic data. Only models that pass are offered in the assistant."),
+    "run_test": ("Rulează testul", "Run test"),
+    "approved_models": ("Modele testate", "Tested models"),
+    "feedback_stats": ("Feedback revizuire pe regulă (pentru ajustarea pragurilor)", "Review feedback per rule (for tuning thresholds)"),
+    "thresholds": ("Pragurile se modifică în {p}", "Thresholds are set in {p}"),
+    "ollama_status": ("Ollama: {n} modele instalate", "Ollama: {n} models installed"),
+    "ollama_off": ("Ollama nu rulează la {u}. Instalați de pe ollama.com și porniți-l pentru modelul local.",
+                   "Ollama is not running at {u}. Install it from ollama.com and start it to use the local model."),
+    "error": ("Eroare", "Error"),
+    "thinking": ("Caut în date…", "Looking through the data…"),
+    "all": ("Toate", "All"),
+}
+
+CHECKS = {
+    "near_duplicate": ("Posibil duplicat", "Near-duplicate"),
+    "price_increase": ("Creștere de preț", "Price increase"),
+    "outlier": ("Sumă neobișnuită", "Unusual amount"),
+    "vat": ("Tipar TVA", "VAT pattern"),
+    "supplier": ("Modificare furnizor", "Supplier change"),
+}
+SEVERITY = {"high": ("Ridicată", "High"), "medium": ("Medie", "Medium"), "low": ("Scăzută", "Low")}
+SEVERITY_ICON = {"high": "🔴", "medium": "🟠", "low": "🟡"}
+STATUS = {"open": ("Deschisă", "Open"), "confirmed": ("Confirmată", "Confirmed"), "dismissed": ("Respinsă", "Dismissed")}
+
+EXAMPLES = {
+    "ro": ["Care furnizori au crescut prețurile cel mai mult?", "Arată semnalările de peste 10.000 lei.",
+           "S-a schimbat contul bancar al vreunui furnizor?", "Care sunt primii 5 furnizori după achiziții?"],
+    "en": ["Which suppliers raised prices most?", "Show the flagged invoices over 10,000 lei.",
+           "Did any supplier change bank account?", "Who are the top 5 suppliers by spend?"],
+}
+
+
+def tr(key: str, lang: str, **kw) -> str:
+    ro, en = S.get(key, (key, key))
+    text = ro if lang == "ro" else en
+    return text.format(**kw) if kw else text
+
+
+def pick(mapping: dict, key: str, lang: str) -> str:
+    ro, en = mapping.get(key, (key, key))
+    return ro if lang == "ro" else en
+
+
+def fmt_lei(x, lang: str) -> str:
+    if x is None:
+        return "–"
+    s = f"{float(x):,.2f}"
+    if lang == "ro":
+        s = s.replace(",", "_").replace(".", ",").replace("_", ".")
+    return f"{s} lei"
+
+
+def fmt_compact(x, lang: str) -> str:
+    """Short amounts for KPI tiles: 9,97 mil. lei / 713.041 lei."""
+    if x is None:
+        return "–"
+    x = float(x)
+    if abs(x) >= 1_000_000:
+        v = f"{x / 1_000_000:.2f}"
+        return (v.replace(".", ",") + " mil. lei") if lang == "ro" else (v + "M lei")
+    s = f"{x:,.0f}"
+    return (s.replace(",", ".") if lang == "ro" else s) + " lei"

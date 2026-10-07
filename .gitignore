@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+*.duckdb
+*.duckdb.wal
+demo_data/
+reports/
+approved_models.json
+# never commit client data
+clients/
+*.zip
+build/
