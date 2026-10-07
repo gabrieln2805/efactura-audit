@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Engine in browser spike</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
+</head>
+<body>
+<pre id="log">starting…</pre>
+<script type="module">
+const log = (m) => { document.getElementById("log").textContent += "\n" + m; };
+const t = {};
+const mark = (k, t0) => { t[k] = +((performance.now() - t0) / 1000).toFixed(2); log(`${k}: ${t[k]}s`); };
+const result = { timings: t };
+try {
+  let t0 = performance.now();
+  const pyodide = await loadPyodide();
+  mark("load_pyodide", t0);
+
+  t0 = performance.now();
+  await pyodide.loadPackage(["micropip", "numpy", "pandas", "scipy", "scikit-learn", "lxml", "duckdb", "pyyaml"]);
+  mark("load_engine_packages", t0);
+
+  t0 = performance.now();
+  const micropip = pyodide.pyimport("micropip");
+  const manifest = await (await fetch("manifest.json")).json();   // written by prepare.py
+  const wheel = new URL(manifest.wheel, location.href).href;
+  await micropip.install(wheel, { deps: false });
+  mark("install_engine_wheel", t0);
+
+  t0 = performance.now();
+  const data = new Uint8Array(await (await fetch("upload.zip")).arrayBuffer());
+  pyodide.globals.set("upload_bytes", data);
+  mark("fetch_upload", t0);
+
+  t0 = performance.now();
+  const imp = await pyodide.runPythonAsync(`
+from efactura_audit.store import Store
+from efactura_audit.importer import import_sources, iter_uploaded
+store = Store("/tmp/audit.duckdb")
+res = import_sources(store, iter_uploaded("upload.zip", bytes(upload_bytes.to_py())))
+res.summary()
+`);
+  mark("import", t0);
+  result.import = imp;
+
+  t0 = performance.now();
+  const audit = await pyodide.runPythonAsync(`
+import json
+from efactura_audit.config import default_settings
+from efactura_audit.engine import run_audit
+r = run_audit(store, default_settings())
+flags = store.df("SELECT flag_id, check_name, rule, severity, score, amount_at_risk_ron FROM fct_flags ORDER BY flag_id")
+tests = [(x.name, x.status) for x in r.data_tests]
+json.dumps({"summary": r.summary(), "flags": json.loads(flags.to_json(orient="records")),
+            "tests_failing": [x for x in tests if x[1] != "pass"], "n_tests": len(tests)})
+`);
+  mark("audit", t0);
+  Object.assign(result, JSON.parse(audit));
+
+  t0 = performance.now();
+  const q = await pyodide.runPythonAsync(`
+json.dumps(store.df("SELECT supplier_name, ROUND(total_spend_ron, 2) AS spend, flags FROM dim_suppliers ORDER BY spend DESC LIMIT 3").to_dict("records"))
+`);
+  mark("mart_query", t0);
+  result.top_suppliers = JSON.parse(q);
+
+  // reports: optional extras, installed on demand
+  try {
+    t0 = performance.now();
+    await pyodide.loadPackage(["matplotlib"]);
+    await micropip.install(["openpyxl", "reportlab"]);
+    mark("load_report_packages", t0);
+    t0 = performance.now();
+    const sizes = await pyodide.runPythonAsync(`
+from efactura_audit.report import excel_report, pdf_report
+x = excel_report(store, "ro"); p = pdf_report(store, "ro")
+json.dumps({"xlsx_bytes": len(x), "pdf_bytes": len(p), "pdf_magic": p[:5].decode("latin1")})
+`);
+    mark("reports", t0);
+    result.reports = JSON.parse(sizes);
+  } catch (e) {
+    result.reports_error = String(e).slice(-1500);
+    log("reports failed: " + result.reports_error);
+  }
+
+  const res = performance.getEntriesByType("resource");
+  result.downloaded_mb = +(res.reduce((s, r) => s + (r.transferSize || r.encodedBodySize || 0), 0) / 1048576).toFixed(1);
+  result.largest = res.map(r => [r.name.split("/").pop(), +((r.transferSize || r.encodedBodySize || 0) / 1048576).toFixed(1)])
+    .sort((a, b) => b[1] - a[1]).slice(0, 8);
+  result.ok = true;
+} catch (e) {
+  result.ok = false;
+  result.error = String(e).slice(-3000);
+  log("ERROR " + result.error);
+}
+window.__spike = JSON.stringify(result);
+log("done");
+</script>
+</body>
+</html>

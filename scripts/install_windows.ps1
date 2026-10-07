@@ -17,7 +17,7 @@ Write-Host "Creating virtual environment in .venv ..."
 Invoke-Python @("-m", "venv", ".venv")
 & .\.venv\Scripts\python.exe -m pip install --upgrade pip --quiet
 Write-Host "Installing e-Factura Anomaly Audit ..."
-& .\.venv\Scripts\python.exe -m pip install . --quiet
+& .\.venv\Scripts\python.exe -m pip install ".[all]" --quiet
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green

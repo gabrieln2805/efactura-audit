@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 
 import pandas as pd
-from rapidfuzz import fuzz
+from . import fuzzy as fuzz
 
 from .utils import short_hash
 

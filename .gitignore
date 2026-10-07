@@ -11,3 +11,5 @@ approved_models.json
 clients/
 *.zip
 build/
+*.whl
+web/spike/manifest.json

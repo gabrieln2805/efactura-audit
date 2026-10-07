@@ -10,6 +10,11 @@ enables with their own API key.
 
 > Flags are prompts to check, never conclusions. The tool gives no tax or accounting advice.
 
+**Direction (Oct 2026):** the product is becoming a website where the same engine runs in the user's browser
+(Pyodide), with server-side ANAF sync and alerts as a later paid tier. This repo's CLI, Streamlit app and MCP
+server stay for internal testing. The browser spike is in [`web/spike/`](web/spike/); the plan is in
+[`STATUS.md`](STATUS.md).
+
 Current state and next steps: [`STATUS.md`](STATUS.md). Validation kit: [`docs/validation/`](docs/validation/).
 
 ---
@@ -207,8 +212,14 @@ Screenshots and a sample Romanian report from the demo data are in `docs/`.
 ## Development
 
 ```bash
-.venv/bin/python -m pytest          # 60 tests, ~1 minute (includes MCP subprocess and Streamlit AppTest)
+.venv/bin/python -m pip install -e ".[all,dev]"
+.venv/bin/python -m pytest          # 67 tests, ~1 minute (includes MCP subprocess and Streamlit AppTest)
 ```
+
+`pip install .` installs only the engine (duckdb, pandas, numpy, scikit-learn, lxml, pyyaml), which is also
+what runs in the browser. The extras add the rest: `reports` (Excel/PDF), `assistant` (LLM providers, MCP),
+`app` (Streamlit, plus both of those), `all`, and `dev` (pytest, plus rapidfuzz for the parity test of
+`fuzzy.py`, the pure-Python string similarity that replaced it).
 
 Tests cover the parser (credit notes, EUR, nested ZIPs, non-invoice files), CUI/IBAN validation, item matching,
 each check on handcrafted invoices, recall on the synthetic ground truth, feedback persistence, reports, all tool
@@ -233,8 +244,7 @@ To change a model, edit the `.sql`/`.yml` under `src/efactura_audit/transform/mo
   `utils._SYNONYMS` is the quick fix.
 - **Repeat purchases with identical totals** (same quantity, same fixed price, days apart) remain the main
   source of medium-severity duplicate flags; the controller dismisses them once and they stay dismissed.
-- Out of scope for this version, per the plan: direct ANAF API download (needs the client's certificate),
-  cash-flow forecasting, other countries' formats, any hosted version.
-- Possible additions: an opt-in CUI lookup against ANAF's public VAT register (sends CUIs out, so off by
-  default), swapping the scikit-learn autoencoder for the PyTorch one from the invoice-anomaly-detection project,
-  and a packaged desktop installer.
+- **Website (planned):** the engine runs in the browser with identical flags (`web/spike/`). Still to build:
+  the web UI, login and company profile, keeping the database between visits, and later server-side ANAF OAuth
+  sync with alerts. See the plan in `STATUS.md`.
+- Out of scope for now: cash-flow forecasting and other countries' formats.

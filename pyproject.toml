@@ -10,25 +10,22 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Gabriel Năstase" }]
 license = { text = "Proprietary" }
+# The engine (import, checks, SQL models) needs only these, so it also runs in a browser (Pyodide).
 dependencies = [
     "duckdb>=1.0",
     "pandas>=2.0",
     "numpy>=1.24",
     "scikit-learn>=1.3",
     "lxml>=4.9",
-    "rapidfuzz>=3.0",
-    "openpyxl>=3.1",
-    "reportlab>=4.0",
-    "matplotlib>=3.7",
-    "httpx>=0.25",
-    "streamlit>=1.32",
-    "plotly>=5.18",
-    "mcp>=1.2,<2",
     "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+reports = ["openpyxl>=3.1", "reportlab>=4.0", "matplotlib>=3.7"]
+assistant = ["httpx>=0.25", "mcp>=1.2,<2"]
+app = ["efactura-audit[reports,assistant]", "streamlit>=1.32", "plotly>=5.18"]
+all = ["efactura-audit[app]"]
+dev = ["pytest>=7", "rapidfuzz>=3.0"]
 
 [project.scripts]
 efactura-audit = "efactura_audit.cli:main"

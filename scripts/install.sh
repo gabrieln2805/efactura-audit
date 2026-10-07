@@ -6,7 +6,7 @@ PY=${PYTHON:-python3}
 $PY -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"'
 $PY -m venv .venv
 .venv/bin/python -m pip install --upgrade pip --quiet
-.venv/bin/python -m pip install ".[dev]" --quiet
+.venv/bin/python -m pip install ".[all,dev]" --quiet
 echo
 echo "Done."
 echo "  Start the app:      .venv/bin/efactura-audit app"
