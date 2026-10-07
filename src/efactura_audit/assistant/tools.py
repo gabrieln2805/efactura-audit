@@ -77,6 +77,25 @@ def _supplier_filter(supplier: str | None, col_name: str = "supplier_name", col_
     return f" AND strip_accents(lower({col_name})) LIKE strip_accents(lower(?))", [f"%{s}%"]
 
 
+_FORBIDDEN_SQL = re.compile(
+    r"(?i)\b(attach|copy|export|install|load|pragma|set|read_\w+|\w+_scan|sniff_csv|glob|httpfs|query_table)\b")
+
+
+def readonly_select(store: Store, query: str, limit: int = 200) -> pd.DataFrame:
+    """One SELECT on a read-only connection with file and network access disabled.
+
+    Raises ValueError for anything that is not a single plain SELECT; DuckDB errors propagate.
+    """
+    q = query.strip().rstrip(";")
+    if ";" in q or not re.match(r"(?is)^\s*(select|with)\b", q):
+        raise ValueError("Only a single SELECT (or WITH ... SELECT) statement is allowed.")
+    if _FORBIDDEN_SQL.search(q):
+        raise ValueError("That function is not allowed here.")
+    with store.connect(read_only=True) as con:
+        con.execute("SET enable_external_access = false")   # no file or network reads from SQL
+        return con.execute(f"SELECT * FROM ({q}) LIMIT {int(limit)}").df()
+
+
 def _mart_tables() -> str:
     """The marts and their documented columns (transform/models/marts/_marts.yml), for run_sql."""
     return ", ".join(f"{m.name}({', '.join(m.columns)})" for m in project().layer("marts"))
@@ -330,15 +349,8 @@ class AuditTools:
         return {"granularity": granularity, "series": _records(df)}
 
     def run_sql(self, query: str) -> dict:
-        q = query.strip().rstrip(";")
-        if ";" in q or not re.match(r"(?is)^\s*(select|with)\b", q):
-            return {"error": "Only a single SELECT (or WITH ... SELECT) statement is allowed."}
-        if re.search(r"(?i)\b(attach|copy|export|install|load|pragma|set|read_\w+|\w+_scan|sniff_csv|glob|httpfs|query_table)\b", q):
-            return {"error": "That function is not allowed here."}
         try:
-            with self.store.connect(read_only=True) as con:
-                con.execute("SET enable_external_access = false")   # no file or network reads from SQL
-                df = con.execute(f"SELECT * FROM ({q}) LIMIT 200").df()
+            df = readonly_select(self.store, query, limit=200)
         except Exception as exc:  # noqa: BLE001
             return {"error": str(exc)[:300]}
         for col in df.columns:

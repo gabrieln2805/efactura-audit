@@ -51,6 +51,9 @@ audit and prints how many were found.
    check, then mark it *confirmed* or *dismissed* with a note. Dismissed flags stay dismissed on re-runs.
 4. **Report:** Report tab or `efactura-audit report --lang ro` → Excel (summary, ranked flags, suppliers) and PDF.
 5. **Ask the assistant** (AI assistant tab), e.g. "Care furnizori au crescut prețurile cel mai mult?".
+6. **Check the data itself** (Data tab): every table and model with its lineage, column docs and a preview;
+   charts (spend per supplier and month, a supplier's invoices with flagged ones marked, an item's price history);
+   the data tests with their failing rows; and a read-only SQL box with CSV download.
 
 ## The five checks
 
@@ -204,7 +207,7 @@ Screenshots and a sample Romanian report from the demo data are in `docs/`.
 ## Development
 
 ```bash
-.venv/bin/python -m pytest          # 59 tests, ~1 minute (includes MCP subprocess and Streamlit AppTest)
+.venv/bin/python -m pytest          # 60 tests, ~1 minute (includes MCP subprocess and Streamlit AppTest)
 ```
 
 Tests cover the parser (credit notes, EUR, nested ZIPs, non-invoice files), CUI/IBAN validation, item matching,

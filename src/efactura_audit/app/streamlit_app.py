@@ -13,7 +13,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from efactura_audit.app import data_tab
 from efactura_audit.app.i18n import CHECKS, EXAMPLES, SEVERITY, SEVERITY_ICON, STATUS, fmt_compact, fmt_lei, pick, tr
+from efactura_audit.app.theme import BLUE, SEV_COLORS, chart_layout
 from efactura_audit.assistant.agent import Assistant
 from efactura_audit.assistant.backends import LocalBackend, MCPBackend
 from efactura_audit.assistant.evaluation import approved_models, load_approved, run_model_test, save_result
@@ -26,8 +28,6 @@ from efactura_audit.report import excel_report, pdf_report
 from efactura_audit.store import Store
 from efactura_audit.synthetic import write_dataset
 
-BLUE = "#2a78d6"
-SEV_COLORS = {"high": "#d03b3b", "medium": "#ec835a", "low": "#fab219"}
 KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "mistral": "MISTRAL_API_KEY"}
 
 st.set_page_config(page_title="e-Factura audit", page_icon="🧾", layout="wide")
@@ -67,15 +67,6 @@ def load_flags(include_dismissed: bool, _v: int = 0) -> pd.DataFrame:
     return store.flags(include_dismissed=include_dismissed)
 
 
-def chart_layout(fig: go.Figure, height: int = 280) -> go.Figure:
-    fig.update_layout(height=height, margin=dict(l=8, r=8, t=8, b=8), plot_bgcolor="rgba(0,0,0,0)",
-                      paper_bgcolor="rgba(0,0,0,0)", showlegend=False, font=dict(size=12),
-                      hoverlabel=dict(font_size=12), bargap=0.45)
-    fig.update_xaxes(showgrid=False, zeroline=False)
-    fig.update_yaxes(gridcolor="rgba(128,128,128,0.15)", zeroline=False)
-    return fig
-
-
 def sev_label(sev: str) -> str:
     return f"{SEVERITY_ICON.get(sev, '')} {pick(SEVERITY, sev, ss.lang)}"
 
@@ -113,7 +104,7 @@ with st.sidebar:
 
 n_inv = int(q("SELECT COUNT(*) AS n FROM fct_invoices", _v=ss.data_version)["n"].iloc[0])
 
-tabs = st.tabs([L("tab_overview"), L("tab_flags"), L("tab_invoices"), L("tab_suppliers"), L("tab_import"),
+tabs = st.tabs([L("tab_overview"), L("tab_flags"), L("tab_invoices"), L("tab_suppliers"), L("tab_data"), L("tab_import"),
                 L("tab_report"), L("tab_assistant"), L("tab_settings")])
 
 # ------------------------------------------------------------------------------------ overview
@@ -328,8 +319,15 @@ with tabs[3]:
                 for fl in info["flags"]:
                     st.markdown(f"- {sev_label(fl['severity'])} {fl['title']}")
 
-# ------------------------------------------------------------------------------------ import
+# ------------------------------------------------------------------------------------ data
 with tabs[4]:
+    if n_inv == 0:
+        st.info(L("no_data"))
+    else:
+        data_tab.render(store, q, L, ss.lang, ss.data_version, bump)
+
+# ------------------------------------------------------------------------------------ import
+with tabs[5]:
     st.caption(L("anaf_window"))
     buyer = st.text_input(L("buyer_filter"), value=ws.section("company").get("buyer_cui", ""))
     files = st.file_uploader(L("upload"), type=["zip", "xml"], accept_multiple_files=True)
@@ -365,7 +363,7 @@ with tabs[4]:
                  hide_index=True, width="stretch")
 
 # ------------------------------------------------------------------------------------ report
-with tabs[5]:
+with tabs[6]:
     if n_inv == 0:
         st.info(L("no_data"))
     else:
@@ -385,7 +383,7 @@ with tabs[5]:
                                width="stretch")
 
 # ------------------------------------------------------------------------------------ assistant
-with tabs[6]:
+with tabs[7]:
     st.info(L("ai_label"))
     providers = ["ollama"] + (sorted(CLOUD_PROVIDERS) if ss.cloud_enabled else [])
     c1, c2, c3 = st.columns([1, 1.4, 1])
@@ -448,7 +446,7 @@ with tabs[6]:
                 st.rerun()
 
 # ------------------------------------------------------------------------------------ settings
-with tabs[7]:
+with tabs[8]:
     # keyed widgets update session state before the script runs, so the Assistant tab above sees changes at once
     st.toggle(L("cloud_enable"), key="cloud_enabled")
     st.toggle(L("allow_untested"), key="allow_untested")

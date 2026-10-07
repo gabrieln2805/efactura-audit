@@ -13,9 +13,9 @@ it's finding out whether controllers will commit to a pilot. The validation kit 
 |---|---|
 | Audit engine (import, 5 checks, review, reports) | Done. 99–100 % recall on synthetic data; 9,895 invoices audit in 12 s |
 | Data layer (dbt-style SQL models + data tests) | Done (0.2.0): raw → staging → intermediate → marts; 35 data tests; flags identical to 0.1.1 on 3 seeds |
-| App (Streamlit, RO/EN) | Done; runs on Gabriel's PC |
+| App (Streamlit, RO/EN) | Done; runs on Gabriel's PC. Data tab (7 Oct): lineage, table browser, charts, data tests, SQL |
 | AI assistant + MCP server | Built; **no model approved yet** (Ollama not yet installed on the PC). MCP fixed (pinned `mcp<2`) |
-| Tests | 59 passing |
+| Tests | 60 passing |
 | Version control | Git since 7 Oct 2026; private GitHub repo gabrieln2805/efactura-audit (branch `main`) |
 | Real invoices | **Never tested.** First real data comes from a pilot |
 | Validation | Kit ready (outreach, interview script, demo walkthrough, tracker); **0 conversations so far** |
@@ -112,6 +112,11 @@ In order. Owner in brackets.
   migrate on open. Flags, ML scores and item groups are identical to 0.1.1 on seeds 7, 3 and 11, and all tool
   outputs are unchanged. Two intended differences: suppliers sharing a bank account now count that flag in
   the report and Suppliers tab, and `top_suppliers` groups by CUI. 59 tests.
+  Later the same day: `explore` command (DuckDB UI, read-only); 0.2.0 installed on the PC; private GitHub repo.
+  Data tab in the app: lineage graph of the models with row counts, table browser (column docs, tests,
+  500-row preview, model SQL), charts (supplier x month spend heatmap, a supplier's invoices with flagged
+  ones by severity, an item's unit-price history with price flags), data tests with failing rows, read-only
+  SQL box (same guard as the assistant's run_sql) with CSV download. Checked in light and dark themes. 60 tests.
 
 ## For Claude at the start of a session
 

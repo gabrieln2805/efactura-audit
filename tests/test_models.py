@@ -85,6 +85,20 @@ def test_run_sql_advertises_the_marts(tmp_path):
     assert "fct_flags(" in spec.description and "flags_view" not in spec.description
 
 
+def test_lineage_graph_shows_every_model_and_dependency():
+    import pandas as pd
+
+    from efactura_audit.app.data_tab import _lineage_dot
+    p = project()
+    cat = pd.DataFrame({"name": list(p.models), "rows": 1})
+    dot = _lineage_dot(cat, "fct_invoices", lambda key, **kw: key, "en")
+    for m in p.models.values():
+        assert f'"{m.name}" [' in dot
+        for upstream in m.refs | m.source_tables:
+            assert f'"{upstream}" -> "{m.name}";' in dot
+    assert {t for m in p.models.values() for t in m.source_tables} >= {"raw_invoices", "item_groups", "flags"}
+
+
 def test_legacy_workspace_is_migrated(tmp_path):
     store = _store_with(tmp_path, _monthly(4))
     run_audit(store, default_settings())

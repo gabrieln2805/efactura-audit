@@ -52,6 +52,7 @@ class Model:
     refs: set[str]
     description: str = ""
     columns: dict[str, dict[str, Any]] = field(default_factory=dict)   # name -> {description, tests}
+    source_tables: set[str] = field(default_factory=set)              # physical tables read via source()
 
 
 @dataclass
@@ -133,6 +134,10 @@ class Project:
             missing = m.refs - set(self.models)
             if missing:
                 raise ProjectError(f"{m.name} refs unknown model(s): {', '.join(sorted(missing))}")
+            for src in _SOURCE.findall(m.raw_sql):
+                if src not in self.sources:
+                    raise ProjectError(f"{m.name} reads unknown source {src[0]}.{src[1]}")
+                m.source_tables.add(self.sources[src])
 
     def compile(self, sql: str) -> str:
         def source(match: re.Match) -> str:
