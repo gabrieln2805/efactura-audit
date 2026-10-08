@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FlaskConical } from "lucide-react";
-import { useApp, useCall, usePref } from "../state";
+import { engine, useApp, useCall, usePref } from "../state";
 import { Spinner } from "../components/chrome";
 import { DataTable, type Col } from "../components/DataTable";
 import { Callout, Disclosure, Field, JsonTree, Toggle } from "../components/ui";
@@ -11,12 +11,12 @@ type Feedback = { check_name: string; rule: string; confirmed: number; dismissed
 type SettingsData = { settings: Record<string, unknown>; feedback: Feedback[] };
 
 export function Settings() {
-  const { L, lang, busy, mutate } = useApp();
+  const { L, lang } = useApp();
   const [cloudEnabled, setCloudEnabled] = usePref("cloud_enabled", false);
   const [allowUntested, setAllowUntested] = usePref("allow_untested", false);
   const { data: ollama } = useCall<{ url: string; models: string[] }>("ollama_status");
   const { data: settings } = useCall<SettingsData>("settings");
-  const { data: tested } = useCall<Tested[]>("tested_models");
+  const { data: tested, reload: reloadTested } = useCall<Tested[]>("tested_models");
   const providers = ["ollama", ...(cloudEnabled ? ["anthropic", "mistral", "openai"] : [])];
   const [tprov, setTprov] = useState("ollama");
   const { data: suggestions } = useCall<string[]>("model_suggestions", { provider: tprov });
@@ -25,17 +25,25 @@ export function Settings() {
   const [log, setLog] = useState<string[]>([]);
   const [result, setResult] = useState<{ passed: boolean; summary: string } | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
   const model = tmodel || suggestions?.[0] || "";
+  const ollamaOff = tprov === "ollama" && !!ollama && ollama.models.length === 0;
 
   const runTest = async () => {
     setLog([]);
     setResult(null);
     setTestError(null);
-    const res = await mutate<{ passed: boolean; summary: string }>(
-      "model_test", { provider: tprov, model, api_key: tprov === "ollama" ? "" : tkey }, undefined,
-      (line) => setLog((l) => [...l.slice(-30), line]));
-    if (res) setResult(res);
-    else setTestError(L("error"));
+    setRunning(true);
+    try {
+      setResult(await engine.call<{ passed: boolean; summary: string }>(
+        "model_test", { provider: tprov, model, api_key: tprov === "ollama" ? "" : tkey }, undefined,
+        (line) => setLog((l) => [...l.slice(-30), line])));
+      reloadTested();
+    } catch (e) {
+      setTestError((e as Error).message);
+    } finally {
+      setRunning(false);
+    }
   };
 
   const testedCols = useMemo<Col<Tested>[]>(() => [
@@ -77,18 +85,19 @@ export function Settings() {
               <input type="password" autoComplete="off" value={tkey} onChange={(e) => { setTkey(e.target.value); sessionKeys.set(tprov, e.target.value); }} />
             </Field>
           )}
-          <button className="btn primary" onClick={runTest} disabled={!model || !!busy}>
-            {busy === "model_test" ? <Spinner /> : <FlaskConical size={15} />}{L("run_test")}
+          <button className="btn primary" onClick={runTest} disabled={!model || running || ollamaOff} data-testid="run-model-test">
+            {running ? <Spinner /> : <FlaskConical size={15} />}{L("run_test")}
           </button>
         </div>
-        {log.length > 0 && !result && <div className="error-box" aria-label={L("test_log")}>{log.join("\n")}</div>}
+        {ollamaOff && <Callout kind="warn">{L("ollama_off", { u: ollama!.url })} {L("no_ollama_web")}</Callout>}
+        {running && log.length > 0 && <div className="error-box" aria-label={L("test_log")}>{log.join("\n")}</div>}
         {result && (
           <>
             <Callout kind={result.passed ? "info" : "warn"}>{result.summary.split("\n")[0]}</Callout>
             <pre className="code">{result.summary}</pre>
           </>
         )}
-        {testError && !result && <Callout kind="warn">{testError}</Callout>}
+        {testError && <Callout kind="warn">{L("error")}: {testError}</Callout>}
         {tested && tested.length > 0 && (
           <>
             <div className="section-title">{L("approved_models")}</div>

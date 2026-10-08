@@ -97,3 +97,11 @@ test("assistant: a cloud model answers through the audit tools (API mocked)", as
   await expect(log).toContainText("audit_overview({})");
   expect(seen).toEqual(["Bearer sk-test", "Bearer sk-test"]);
 });
+
+test("settings: the Ollama model test is disabled, with the reason, when Ollama is not running", async () => {
+  const running = await page.evaluate(() => (window as any).__engine.call("ollama_status")) as { models: string[] };
+  test.skip(running.models.length > 0, "Ollama is running on this machine");
+  await page.goto("/#/settings");
+  await expect(page.getByTestId("run-model-test")).toBeDisabled();
+  await expect(page.getByText("Ollama nu rulează la http://localhost:11434")).toHaveCount(2);   // status line and the warning
+});

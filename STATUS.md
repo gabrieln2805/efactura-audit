@@ -230,6 +230,8 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
   - B4: landing page, disclaimer footer, parity checklist, Chrome/Firefox/WebKit runs, storage fallback for
     Safari, performance budget met.
   - Browser tests compare every KPI and caption with the native engine and the Python formatting.
+  - Model test: Ollama is not installed on the PC, so the test could not run. It now stops with the reason when
+    the model cannot be reached, and the web Settings screen disables it while Ollama is off.
 
 ## For Claude at the start of a session
 

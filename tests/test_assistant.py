@@ -186,3 +186,13 @@ def test_cli_version(capsys):
         main(["--version"])
     out = capsys.readouterr().out.strip()
     assert out and out[0].isdigit()   # installed version, or 0.0.0+unknown from a bare source tree
+
+
+def test_model_test_stops_when_the_model_is_unreachable(tmp_path):
+    from efactura_audit.assistant.providers import ProviderError, ScriptedProvider
+
+    def offline(messages):
+        raise ProviderError("ollama: cannot reach http://localhost:11434/api/chat (connection refused)")
+
+    with pytest.raises(ValueError, match="Nothing was tested: ollama: cannot reach"):
+        run_model_test(ScriptedProvider(offline), tmp_path)
