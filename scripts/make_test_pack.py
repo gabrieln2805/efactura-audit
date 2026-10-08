@@ -237,7 +237,7 @@ Each address keeps its own data in the browser, so a new port means an empty app
 
 ```
 cd "D:\\DS ML\\efactura-audit\\web\\app"
-npx vite --port 5190
+npm run dev -- --port 5190
 ```
 
 Open **http://127.0.0.1:5190/#/overview** in Edge or Chrome (not VS Code's built-in browser). Use **5191**,
@@ -276,7 +276,7 @@ Clear site data. The demo stays on 5180.
 
 ## Stress test (client C)
 
-On a fresh address (`npx vite --port 5191`): import `06_stress_client_C_10x.zip` with CUI **{c.buyer.cui}**.
+On a fresh address (`npm run dev -- --port 5191`): import `06_stress_client_C_10x.zip` with CUI **{c.buyer.cui}**.
 - Message: {summary(s7)} (native: {t7:.1f} s for import + audit; expect a few times longer in the browser)
 - Overview: {k7}
 - Then: click through every screen, sort the big tables, search invoices, open Data → Grafice (heatmap with
