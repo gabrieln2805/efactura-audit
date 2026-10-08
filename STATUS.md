@@ -2,7 +2,7 @@
 
 **Start every session here.** Update the "Now", "Next" and "Session log" sections at the end of each session.
 
-Last updated: 7 Oct 2026 · Version 0.2.0 · Phase: **Web product, phase A (set-up and demand test)**
+Last updated: 8 Oct 2026 · Version 0.2.0 · Phase: **Web product, phase B (web version of today's tool)**
 
 ## Now
 
@@ -20,7 +20,9 @@ The engine runs unchanged in a browser: the spike (`web/spike/`) imported 964 in
 | Data layer (dbt-style SQL models + data tests) | Done: raw → staging → intermediate → marts; 35 data tests. The marts are what the web UI will read |
 | Streamlit app (internal) | Done, with Data tab (lineage, table browser, charts, data tests, SQL) |
 | AI assistant + MCP server | Built for local use; moves to the server for the web paid tier |
-| Web frontend, login, hosting | **Not started** |
+| Web frontend (phase B) | **Next**: same screens and features as the Streamlit app, engine running in the browser |
+| Login, hosting, domain | After phase B works (Gabriel's decision, 8 Oct) |
+| Competitors | in-balanta.ro (cloud, SPV sync, IBAN-change and inactive-supplier alerts, cash flow; 4,000+ companies) and ARHIVAR (SPV archive, thresholds; 8 RON/company/month). Neither analyses invoice lines |
 | Tests | 67 passing |
 | Version control | Private GitHub repo gabrieln2805/efactura-audit, branch `main` |
 | Real invoices | **Never tested** |
@@ -28,50 +30,97 @@ The engine runs unchanged in a browser: the spike (`web/spike/`) imported 964 in
 
 ## Next
 
-The full plan with reasoning is in "Web product plan" below. In order; owner in brackets.
+In order; owner in brackets. Details and acceptance checks are in "Action plan" below.
 
-1. **[Gabriel] Set-up decisions:** register the domain (auditefactura.ro or another); choose the legal entity
-   that will sell the subscription (SRL or PFA); confirm the stack (Supabase EU for login and data,
-   Cloudflare Pages for the static site, React or SvelteKit for the UI).
-2. **[Gabriel] Accounts:** create the Supabase project (region Frankfurt) and the Cloudflare account; share
-   the project URLs (not the secret keys) with Claude.
-3. **[Claude] Landing page + live demo (phase B):** a Romanian landing page with a waitlist, and a "try it"
-   page that runs the engine on synthetic data in the browser (built from the spike).
-4. **[Gabriel] Demand test:** send people to the landing page (LinkedIn, accountants' groups, the outreach
-   list in `docs/validation/`); talk to 5–10 controllers and accountants about the paid tier (ANAF sync,
-   alerts). Decide the success threshold before starting (e.g. signups and demo runs over 3–4 weeks).
-5. **[Claude] Free web MVP (phase C)**, once phase B shows interest.
-6. **[Both] Paid tier (phase D)** after the free tier has users.
+1. **[Claude] B1, engine in the browser and app shell:** the engine runs in a Web Worker, data is kept between
+   visits, and the demo data loads and audits to the same 37 flags.
+2. **[Claude] B2, main screens:** Overview, Flags (with review), Invoices, Suppliers.
+3. **[Claude] B3, remaining screens:** Import, Data, Report, Settings, AI assistant.
+4. **[Claude] B4, landing page, polish and parity check**; **[Gabriel]** review each milestone in the browser
+   and sign off the parity checklist.
+5. **[Gabriel] Phase C set-up** (domain, legal entity, Supabase and Cloudflare accounts) once B works; then
+   login, deploy and the demand test.
+6. **[Both] Phase D:** the differentiators, in the ranked order below.
 
-## Web product plan (agreed 7 Oct 2026)
+## Product direction (ranked 8 Oct 2026)
 
-**Architecture: local-first first, server features for the paid tier.**
+**Positioning:** not another e-Factura archive or SPV connector (those cost 5–8 RON/company/month). Instead,
+purchase control for SMEs and their accountants: price intelligence per invoice line, checks before
+payment, AI that turns flags into money recovered, and invoices that never leave the user's computer.
+
+| # | Differentiator | What it is |
+|---|---|---|
+| 1 | **Supplier price-increase report** (launch hook) | "How much did your suppliers' price increases cost you?" Net price changes per item since the August 2025 VAT change, extra cost in lei, compared with official inflation for the category (INS CPI/PPI) |
+| 2 | **Check before paying** | Upload the payment batch or bank export (CSV, MT940, CAMT.053) before sending it. Flags: a different account than the supplier's e-Factura history, invoices paid twice, payments for flagged invoices, invoices that never went through e-Factura. Name-to-IBAN verification doesn't cover RON transfers until 2027 |
+| 3 | **AI that closes the loop** | For each flag, the assistant gathers the evidence and drafts the Romanian email to the supplier (credit note request, account confirmation, price justification) or an internal note; the user approves. Paid tier: hosted MCP server with login, so Claude or ChatGPT can use the company's data |
+| 4 | **Tax-deduction protection** | e-Factura compared with the purchase ledger (SAF-T D406 or an accounting export): invoices booked without e-Factura (15 % fine for the buyer, no VAT deduction) and e-Factura invoices not booked (missed deductions). Supplier fiscal status from ANAF's public API (inactive, VAT cancelled, cash-accounting VAT, e-Factura register). Preview of the pre-filled VAT return (P300) |
+| 5 | **Price benchmarks across companies** (long-term moat) | Invoice lines classified into CPV codes (embeddings running in the browser, which also fixes the "toner 85A" split); opt-in sharing of aggregates only (category, unit price, month), shown when at least 5 companies contribute; seeded from public procurement prices (SEAP) |
+| 6 | **Accountants as the sales channel** | Portfolio view of all clients ranked by risk; a monthly supplier-control report under the accountant's brand, which they can bill as a service |
+| 7 | **Privacy, proven** | A strict browser policy that blocks uploads of invoice data; optionally open-source the engine so the claim can be checked |
+
+**Basics to match cheaply (paid tier):** SPV sync and legal archive (ANAF keeps messages about 60 days),
+inactive-supplier alerts, several companies per account, notifications.
+**Pricing hypothesis:** basics at market level; the insights tier at 49–149 RON/month, justified by the lei
+the reports find. To be validated in the demand test.
+
+## Architecture
 
 - **Free tier, local-first:** a static site; the engine runs in the user's browser (Pyodide in a Web Worker).
   Invoices are uploaded as ZIPs, processed and stored in the browser, and never reach our servers. Login
-  (Supabase) stores only the account, the company's CUI and name, and the subscription. This costs almost
-  nothing per free user, keeps "your invoices never leave your computer", and keeps GDPR exposure to account
-  data.
-- **Paid tier, server-side:**
-  - ANAF SPV sync through ANAF's OAuth API: the company authorizes once with its qualified certificate; the
-    token lasts 90 days.
-  - Continuous monitoring and alerts, e.g. a changed IBAN before an invoice is paid.
-  - The AI assistant, with the existing redaction.
-  - Several companies per account (accounting firms) and history across devices.
+  (Supabase) stores only the account, the company's CUI and name, and the subscription.
+- **Paid tier, server-side:** ANAF SPV sync through ANAF's OAuth API (the company authorizes once with its
+  qualified certificate; the token lasts 90 days), alerts, the hosted assistant and MCP server, several
+  companies per account, benchmark aggregation. Paid features live on the server because browser-side
+  gating can be bypassed.
+- **Repo layout:** `src/efactura_audit` stays the engine, shared by the website, the Streamlit app and the CLI.
+  The web app goes in `web/app/` (the spike is `web/spike/`), Supabase migrations and edge functions in
+  `supabase/`. The marts (`fct_invoices`, `fct_flags`, `dim_suppliers`, ...) are what the UI reads.
 
-  These need a server, and they are what is worth a subscription. Browser-side gating could be bypassed, so
-  paid features must not live in the browser.
+## Action plan
 
-| Phase | Content | Effort (solo) |
+### Phase B: web version of today's tool (about 4–6 weeks)
+
+**Scope: exactly what the Streamlit app does today.** Same screens, same results, nothing new; the engine
+runs in the browser. Out of scope: login, payments, server, new features.
+
+**Stack:** Vite, React and TypeScript; the engine in a Pyodide Web Worker behind a typed message API; Plotly.js
+(cartesian bundle) so the charts match the current app; `@hpcc-js/wasm-graphviz` for the lineage graph (the same
+Graphviz engine Streamlit uses); TanStack Table; UI strings exported from `app/i18n.py`, so RO/EN has one source;
+the database kept in OPFS (the browser's private file storage); Playwright tests in Edge. Node.js 24 is
+installed on the PC.
+
+| Milestone | Deliverables | Done when |
 |---|---|---|
-| A. Set-up | Domain, legal entity, Supabase and Cloudflare accounts, stack choice | days |
-| B. Landing + demo | Romanian landing page, waitlist (Supabase table), in-browser demo on synthetic data, privacy-friendly analytics | 1–2 weeks |
-| C. Free MVP | Engine in a Web Worker started when the page opens; database kept between visits (OPFS/IndexedDB); UI for import, overview, flag review, invoices, suppliers, data checks and Excel/PDF; Supabase login and company profile (name looked up by CUI in ANAF's public register through an edge function); terms, privacy policy, cookie notice; tax-advice disclaimer on every page | 5–8 weeks |
-| D. Paid tier | Backend (EU region) for ANAF OAuth sync, alerts, assistant and multiple companies; GDPR processor documents (DPA, sub-processors, breach procedure); Stripe; our own subscription invoices go through e-Factura (B2B in Romania), e.g. via the SmartBill or Oblio API | 6–10 weeks |
+| **B1. Engine and shell** (week 1) | `efactura_audit.web` module with JSON in and out (import files, run audit, query a mart, save feedback, reports, settings); worker that starts loading when the page opens, with progress; database kept between visits; "load demo data"; app shell with tabs, RO/EN and light/dark | A Playwright test loads the demo and gets the same 37 flags as native; a reload keeps the data |
+| **B2. Main screens** (weeks 2–3) | Overview (KPIs, flags by check, monthly spend, top flags); Flags (filters, detail with evidence and price chart, invoices involved, confirm/dismiss with note); Invoices (search, detail with lines and flags); Suppliers (table, monthly spend, bank accounts, flags) | Every element of these four Streamlit tabs is present, with the same numbers on the demo |
+| **B3. Remaining screens** (weeks 3–4) | Import (ZIP/XML upload, buyer CUI filter, data checks, import log); Data (lineage, table browser, charts, data tests, SQL); Report (Excel and PDF download); Settings (thresholds, review statistics); AI assistant (cloud providers off by default, key kept for the session only, same redaction; local Ollama when it allows the site's origin; providers call the APIs with `fetch` instead of httpx) | Same as B2 for these tabs; a deliberately broken workspace shows its failing data tests |
+| **B4. Landing page and finish** (week 5) | Romanian landing page (English too): what the tool does, privacy, "try the demo"; disclaimer on every page; parity checklist against Streamlit; cross-browser check (Edge, Chrome, Firefox, Safari); performance budget | Gabriel signs off the checklist; return-visit load ≤ 10 s; demo audit ≤ 8 s |
 
-**Repo layout:** `src/efactura_audit` stays the engine, shared by the website, the Streamlit app and the CLI.
-The web app goes in `web/` (the spike is `web/spike/`), Supabase migrations and edge functions in `supabase/`.
-The marts (`fct_invoices`, `fct_flags`, `dim_suppliers`, …) are what the UI reads.
+### Phase C: accounts and go-live (about 1–2 weeks, after B)
+
+- **[Gabriel]** Domain (auditefactura.ro or another), legal entity, Supabase (Frankfurt) and Cloudflare accounts.
+- **[Claude]** Supabase login (email and passkeys); company profile with the name looked up by CUI in ANAF's
+  public register (through an edge function); waitlist; terms, privacy policy, cookie notice; deploy to
+  Cloudflare Pages with a strict content security policy; privacy-friendly analytics.
+- **[Gabriel] Demand test:** share the site; 5–10 conversations with controllers and accountants; decide the
+  success threshold before starting.
+
+### Phase D: differentiators in the free tier, in ranked order (each about 1–3 weeks)
+
+1. **Price-increase report:** add a scenario to the synthetic data where suppliers pass on the VAT change, so the
+   demo has something to show; bring in INS price indices.
+2. **Check before paying:** parsers for the bank export formats of the main Romanian banks.
+3. **AI that closes the loop:** drafts per flag, using the user's own key until the server exists.
+4. **Tax-deduction protection:** SAF-T D406 parser, ANAF status lookup through the edge function, P300 preview.
+
+**Verify before building:** INS indices per product category; SEAP unit-price open data; the export formats
+of the main banks.
+
+### Phase E: paid tier and server
+
+SPV OAuth sync, archive and alerts; hosted assistant and MCP server with login; benchmark aggregation (#5);
+accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscriptions; GDPR processor documents
+(DPA, sub-processors, breach procedure).
 
 ## Setup on Gabriel's PC
 
@@ -115,6 +164,13 @@ The marts (`fct_invoices`, `fct_flags`, `dim_suppliers`, …) are what the UI re
 
 ## Decisions
 
+- **8 Oct 2026:**
+  - Phase B is an exact web version of today's tool; new features come only after login and go-live.
+  - Positioning is purchase control (price intelligence per line, checks before payment, AI that closes the
+    loop, privacy), not SPV sync or archiving, which competitors sell at 5–8 RON/month.
+  - Differentiators in ranked order: price-increase report, check before paying, AI that closes the loop,
+    tax-deduction protection, cross-company benchmarks, accountant channel, proven privacy.
+  - Gabriel sets up login and accounts after phase B works.
 - **7 Oct 2026: the product becomes a website.** Free tier local-first: invoices processed in the user's
   browser. Paid tier: server-side ANAF sync, alerts, assistant, multiple companies, used only when the
   company opts in. The Streamlit app, CLI and MCP server are kept for internal testing. This replaces "everything
@@ -150,9 +206,13 @@ The marts (`fct_invoices`, `fct_flags`, `dim_suppliers`, …) are what the UI re
   - **Direction changed to a website.** Feasibility spike: the engine runs in Pyodide with identical flags
     (`web/spike/README.md` has the timings). rapidfuzz replaced by `fuzzy.py`; dependencies split into a light
     core plus `reports`/`assistant`/`app`/`all`/`dev` extras. Plan written in this file. 67 tests.
+- **8 Oct 2026:** Competitor check (in-balanta, ARHIVAR) and 2026 context (e-TVA compliance notices removed,
+  P300 still published; 15 % fine and no VAT deduction for B2B invoices outside e-Factura; ANAF public API for
+  supplier status; name-to-IBAN check for RON only from 2027; ViDA 2030). Ranked the differentiators; wrote the
+  phased action plan (B: web parity, C: accounts and go-live, D: differentiators, E: paid tier).
 
 ## For Claude at the start of a session
 
-Read this file, then `README.md`. For web work, read "Web product plan" above and `web/spike/README.md`. Run
+Read this file, then `README.md`. For web work, read "Action plan" above and `web/spike/README.md`. Run
 `python -m pytest` before changing code; for engine changes, compare flags against the 3-seed snapshot.
 The project doc `claude/status.md` in the "efactura anomaly" Project mirrors this file.
