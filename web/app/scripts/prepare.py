@@ -36,6 +36,10 @@ def source_hash() -> str:
     return h.hexdigest()[:16]
 
 
+# loaded in the background after the engine is ready, and awaited only before an audit (the slowest to load)
+AUDIT_ONLY = {"scikit-learn"}
+
+
 def pyodide_packages() -> list[str]:
     """The engine's dependencies from pyproject.toml, by name (Pyodide ships them all)."""
     deps = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["dependencies"]
@@ -62,7 +66,10 @@ def build_wheel(digest: str) -> None:
     subprocess.run([sys.executable, "-m", "pip", "wheel", str(ROOT), "--no-deps", "-q", "-w", str(PY_OUT)], check=True)
     wheel = next(PY_OUT.glob("efactura_audit-*.whl"))
     version = wheel.name.split("-")[1]
-    manifest = {"wheel": wheel.name, "version": version, "hash": digest, "packages": pyodide_packages(),
+    packages = pyodide_packages()
+    manifest = {"wheel": wheel.name, "version": version, "hash": digest,
+                "packages": [p for p in packages if p not in AUDIT_ONLY],
+                "audit_packages": [p for p in packages if p in AUDIT_ONLY],
                 "report_packages": {"pyodide": ["matplotlib"], "pypi": ["openpyxl", "reportlab"]}}
     (PY_OUT / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8", newline="\n")
 

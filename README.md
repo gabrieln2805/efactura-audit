@@ -12,8 +12,8 @@ enables with their own API key.
 
 **Direction (Oct 2026):** the product is becoming a website where the same engine runs in the user's browser
 (Pyodide), with server-side ANAF sync and alerts as a later paid tier. This repo's CLI, Streamlit app and MCP
-server stay for internal testing. The browser spike is in [`web/spike/`](web/spike/); the plan is in
-[`STATUS.md`](STATUS.md).
+server stay for internal testing. The web app (same screens and results as the Streamlit app, engine in the
+browser) is in [`web/app/`](web/app/); the plan is in [`STATUS.md`](STATUS.md).
 
 Current state and next steps: [`STATUS.md`](STATUS.md). Validation kit: [`docs/validation/`](docs/validation/).
 
@@ -213,7 +213,7 @@ Screenshots and a sample Romanian report from the demo data are in `docs/`.
 
 ```bash
 .venv/bin/python -m pip install -e ".[all,dev]"
-.venv/bin/python -m pytest          # 67 tests, ~1 minute (includes MCP subprocess and Streamlit AppTest)
+.venv/bin/python -m pytest          # 74 tests, ~1 minute (includes MCP subprocess and Streamlit AppTest)
 ```
 
 `pip install .` installs only the engine (duckdb, pandas, numpy, scikit-learn, lxml, pyyaml), which is also
@@ -230,6 +230,27 @@ read upstream, data tests pass on clean data and catch broken data, rebuild only
 To change a model, edit the `.sql`/`.yml` under `src/efactura_audit/transform/models/`, then run
 `efactura-audit -w <workspace> build -v`. The views are rebuilt and the data tests run.
 
+## Web app (`web/app/`)
+
+The website version: a static site (Vite, React, TypeScript) whose audit engine is this Python package running
+in the user's browser (Pyodide in a Web Worker). Invoices are processed and stored in the browser's private
+storage (OPFS); nothing is uploaded. Same screens and results as the Streamlit app; the parity checklist is
+[`docs/web-parity-checklist.md`](docs/web-parity-checklist.md).
+
+```bash
+cd web/app
+npm install
+npm run dev              # http://127.0.0.1:5180  (landing page; the app is at #/overview)
+npm test                 # Playwright in Edge: engine, all screens, landing, storage, performance budget
+npm run test:browsers    # engine and landing in Chrome, Firefox and WebKit
+npm run build            # static site in web/app/dist
+```
+
+`npm run dev` and `npm run build` first run `scripts/prepare.py` (with the repo's `.venv`): it builds the engine
+wheel into `public/py/`, exports the UI strings from `app/i18n.py` (one RO/EN source for both apps), and
+writes the native engine's demo results that the browser tests compare against. The browser calls the engine
+through `efactura_audit/web.py` (one JSON method per screen, the same queries as the Streamlit app).
+
 ## Known limits and next steps
 
 - **Validate on real invoices.** Everything here is tested on synthetic data. The first pilot should run on a
@@ -244,7 +265,6 @@ To change a model, edit the `.sql`/`.yml` under `src/efactura_audit/transform/mo
   `utils._SYNONYMS` is the quick fix.
 - **Repeat purchases with identical totals** (same quantity, same fixed price, days apart) remain the main
   source of medium-severity duplicate flags; the controller dismisses them once and they stay dismissed.
-- **Website (planned):** the engine runs in the browser with identical flags (`web/spike/`). Still to build:
-  the web UI, login and company profile, keeping the database between visits, and later server-side ANAF OAuth
-  sync with alerts. See the plan in `STATUS.md`.
+- **Website:** the web app (`web/app/`) has every screen of the Streamlit app. Still to build: login and
+  company profile, hosting, and later server-side ANAF OAuth sync with alerts. See the plan in `STATUS.md`.
 - Out of scope for now: cash-flow forecasting and other countries' formats.

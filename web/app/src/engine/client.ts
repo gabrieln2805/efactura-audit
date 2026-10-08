@@ -1,9 +1,9 @@
-// The page's side of the engine: starts the worker at once and turns calls into promises.
+// The page's side of the engine: starts the worker on first use (or start()) and turns calls into promises.
 import type { FromWorker, Stage } from "./protocol";
 
 export type EngineState =
   | { phase: "loading"; stage: Stage; done: number; total: number }
-  | { phase: "ready"; version: string; persistent: boolean; seconds: number }
+  | { phase: "ready"; version: string; persistent: boolean; seconds: number; stages: Record<string, number> }
   | { phase: "locked" }
   | { phase: "error"; error: string };
 
@@ -17,16 +17,25 @@ type Pending = { resolve: (v: any) => void; reject: (e: unknown) => void; onLog?
 
 export class Engine {
   state: EngineState = { phase: "loading", stage: "runtime", done: 0, total: 0 };
-  private worker: Worker;
+  private worker: Worker | null = null;
   private nextId = 1;
   private pending = new Map<number, Pending>();
   private listeners = new Set<(s: EngineState) => void>();
 
-  constructor() {
-    this.worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
-    this.worker.onmessage = (ev: MessageEvent<FromWorker>) => this.receive(ev.data);
-    this.worker.onerror = (ev) => this.setState({ phase: "error", error: ev.message || "worker failed" });
-    this.worker.postMessage({ type: "init", base: document.baseURI });
+  /** Start loading Pyodide and the engine (about 50 MB on a first visit). Safe to call repeatedly. */
+  start(): Worker {
+    if (this.worker) return this.worker;
+    const w = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
+    w.onmessage = (ev: MessageEvent<FromWorker>) => this.receive(ev.data);
+    w.onerror = (ev) => this.setState({ phase: "error", error: ev.message || "worker failed" });
+    w.postMessage({ type: "init", base: document.baseURI,
+                    storage: new URLSearchParams(location.search).get("storage") ?? undefined });
+    this.worker = w;
+    return w;
+  }
+
+  get started(): boolean {
+    return this.worker !== null;
   }
 
   subscribe(fn: (s: EngineState) => void): () => void {
@@ -45,7 +54,7 @@ export class Engine {
         this.setState({ phase: "loading", stage: m.stage, done: m.done, total: m.total });
         break;
       case "ready":
-        this.setState({ phase: "ready", version: m.version, persistent: m.persistent, seconds: m.seconds });
+        this.setState({ phase: "ready", version: m.version, persistent: m.persistent, seconds: m.seconds, stages: m.stages });
         break;
       case "log":
         this.pending.get(m.id)?.onLog?.(m.text);
@@ -71,7 +80,7 @@ export class Engine {
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve, reject, onLog });
-      this.worker.postMessage({ type: "call", id, method, args, files });
+      this.start().postMessage({ type: "call", id, method, args, files });
     });
   }
 }

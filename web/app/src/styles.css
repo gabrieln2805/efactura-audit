@@ -430,10 +430,67 @@ a { color: var(--accent); }
 .chat-input .input { flex: 1; height: 40px; }
 .chat-input .btn { height: 40px; }
 
+/* ------------------------------------------------------------------ footer and landing */
+.app-foot { margin-top: auto; padding: 14px 32px 22px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
+
+.landing { min-height: 100%; display: flex; flex-direction: column; }
+.landing-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 32px;
+  background: var(--rail); position: sticky; top: 0; z-index: 10;
+}
+.landing-bar .brand { padding: 0; }
+.landing-actions { display: flex; align-items: center; gap: 10px; }
+.landing-bar .btn { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.22); }
+.landing-bar .btn:hover { background: rgba(255, 255, 255, 0.08); }
+.btn.lg { height: 44px; padding: 0 20px; font-size: 15px; text-decoration: none; }
+a.btn { text-decoration: none; color: inherit; }
+a.btn.primary { color: var(--accent-ink); }
+
+.hero {
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 48px; align-items: center;
+  padding: 72px 32px 56px; max-width: 1180px; margin: 0 auto; width: 100%;
+}
+.hero h1 { font-size: clamp(30px, 4.2vw, 48px); line-height: 1.08; letter-spacing: -0.03em; margin: 14px 0 16px; font-weight: 700; }
+.lead { font-size: 17px; line-height: 1.6; color: var(--text-2); margin: 0 0 26px; max-width: 600px; }
+.hero-text .row { margin-bottom: 12px; }
+.eyebrow-pill {
+  display: inline-block; font-size: 12.5px; font-weight: 600; color: var(--accent);
+  background: var(--accent-soft); padding: 4px 11px; border-radius: 99px;
+}
+.hero-card { padding: 8px; transform: rotate(-1deg); box-shadow: var(--shadow-pop); }
+.mock-row {
+  display: grid; grid-template-columns: 96px 1fr auto; gap: 12px; align-items: center; padding: 13px 14px;
+  border-bottom: 1px solid var(--border); font-size: 13.5px;
+}
+.mock-row:last-child { border-bottom: 0; }
+
+.landing-section { padding: 40px 32px; max-width: 1180px; margin: 0 auto; width: 100%; }
+.landing-section h2 { font-size: 24px; letter-spacing: -0.02em; margin: 0 0 20px; }
+.feature-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.feature-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.feature { padding: 18px; position: relative; }
+.feature h3 { margin: 10px 0 6px; font-size: 15px; }
+.feature p { margin: 0; color: var(--text-2); font-size: 13.5px; line-height: 1.55; }
+.feature-icon { color: var(--accent); }
+.feature.plain { padding: 0; }
+.steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.step-n {
+  position: absolute; top: 14px; right: 16px; font-size: 28px; font-weight: 700; color: var(--surface-3);
+  font-variant-numeric: tabular-nums;
+}
+.privacy-band { border-top: 1px solid var(--border); }
+.privacy-band .hint { margin-top: 22px; }
+.landing-foot {
+  margin-top: auto; padding: 18px 32px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  border-top: 1px solid var(--border); color: var(--muted); font-size: 12.5px;
+}
+
 /* ------------------------------------------------------------------ narrow screens */
 @media (max-width: 1100px) {
   .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .grid-2, .grid-split, .grid-even, .grid-cols-preview { grid-template-columns: 1fr; }
+  .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero { grid-template-columns: 1fr; padding-top: 48px; }
 }
 @media (max-width: 860px) {
   .shell { grid-template-columns: 1fr; background: none; }
@@ -451,4 +508,11 @@ a { color: var(--accent); }
   .topbar { padding: 18px 16px 12px; }
   .content { padding: 0 16px 32px; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-foot { padding: 14px 16px 20px; }
+  .landing-bar, .landing-section, .hero, .landing-foot { padding-left: 16px; padding-right: 16px; }
+  .landing-bar .btn { display: none; }
+  .feature-grid, .feature-grid.three, .steps { grid-template-columns: 1fr; }
+  .hero-card { transform: none; }
+  .mock-row { grid-template-columns: 1fr auto; }
+  .mock-row > span:nth-child(2) { grid-column: 1 / -1; order: 3; color: var(--text-2); }
 }

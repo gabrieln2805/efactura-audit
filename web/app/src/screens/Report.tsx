@@ -46,7 +46,6 @@ export function Report() {
         <Segmented ariaLabel={L("report_lang")} options={["ro", "en"] as Lang[]} value={rlang} onChange={setRlang}
                    render={(l) => (l === "ro" ? "Română" : "English")} />
       </div>
-      <div className="disclaimer">{L("disclaimer")}</div>
       <section className="grid-even">
         {card("xlsx", L("make_excel"), FileSpreadsheet)}
         {card("pdf", L("make_pdf"), FileText)}

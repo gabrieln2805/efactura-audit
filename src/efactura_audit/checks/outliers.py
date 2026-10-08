@@ -12,10 +12,6 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import IsolationForest
-from sklearn.exceptions import ConvergenceWarning
-from sklearn.neural_network import MLPRegressor
-from sklearn.preprocessing import StandardScaler
 
 from .base import AuditContext, lei, make_flag
 
@@ -49,6 +45,13 @@ def invoice_features(ctx: AuditContext) -> pd.DataFrame:
 
 def model_scores(feat: pd.DataFrame, contamination: float = 0.01, seed: int = 0) -> pd.DataFrame:
     """Isolation Forest and autoencoder scores (0-1, higher = more unusual) per invoice."""
+    # imported here: scikit-learn (and scipy) are the slowest packages to load, and the web app fetches them
+    # in the background, only once an audit runs
+    from sklearn.ensemble import IsolationForest
+    from sklearn.exceptions import ConvergenceWarning
+    from sklearn.neural_network import MLPRegressor
+    from sklearn.preprocessing import StandardScaler
+
     X = StandardScaler().fit_transform(feat[FEATURES].to_numpy(dtype=float))
     iso = IsolationForest(n_estimators=300, contamination=contamination, random_state=seed).fit(X)
     iso_raw = -iso.score_samples(X)

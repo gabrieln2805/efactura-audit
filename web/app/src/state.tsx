@@ -8,7 +8,7 @@ export type Theme = "system" | "light" | "dark";
 export type Toast = { id: number; text: string; kind: "ok" | "error" };
 export type Status = { version: string; invoices: number; open_flags: number; last_audit: string | null; buyer_cui: string };
 
-export const engine = new Engine();   // starts loading as soon as the page opens
+export const engine = new Engine();   // starts when the app opens (or early, from the landing page's buttons)
 if (import.meta.env.DEV) (window as any).__engine = engine;   // used by the Playwright tests
 
 function stored<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {

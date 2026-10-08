@@ -10,7 +10,7 @@ let page: Page;
 
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
-  await page.goto("/");
+  await page.goto("/#/overview");
   await expect(page.getByTestId("engine-chip")).toHaveAttribute("data-phase", "ready", { timeout: 200_000 });
   await page.getByRole("button", { name: "Încarcă date demo (sintetice)" }).click();
   await expect(page.getByTestId("kpi-flags")).toContainText(expected.kpi.flags, { timeout: 120_000 });

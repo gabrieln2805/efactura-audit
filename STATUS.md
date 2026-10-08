@@ -2,7 +2,7 @@
 
 **Start every session here.** Update the "Now", "Next" and "Session log" sections at the end of each session.
 
-Last updated: 8 Oct 2026 · Version 0.2.0 · Phase: **Web product, phase B (web version of today's tool)**
+Last updated: 8 Oct 2026 · Version 0.2.0 · Phase: **Web product: phase B built, waiting for Gabriel's review**
 
 ## Now
 
@@ -10,20 +10,21 @@ Last updated: 8 Oct 2026 · Version 0.2.0 · Phase: **Web product, phase B (web 
 in, add their company and audit their invoices, free at first, with a paid subscription later. The Streamlit
 app, CLI and MCP server stay for internal testing.
 
-The engine runs unchanged in a browser: the spike (`web/spike/`) imported 964 invoices and produced the same
-37 flags as the native run, with the same IDs, scores and amounts, plus the Excel and PDF reports.
+**Phase B is built** (`web/app/`): every screen of the Streamlit app, with the engine running in the browser
+and the same numbers (37 flags with identical IDs, scores and amounts on the demo). It is not deployed
+anywhere yet; it runs locally with `npm run dev`.
 
 | Area | State |
 |---|---|
 | Audit engine (import, 5 checks, review, reports) | Done. 99–100 % recall on synthetic data; 9,895 invoices audit in 12 s natively |
-| Engine in the browser (Pyodide) | **Proven** (spike): first visit 16–25 s to load (52 MB), return visit about 8 s; import 3 s and audit 6 s for 964 invoices |
-| Data layer (dbt-style SQL models + data tests) | Done: raw → staging → intermediate → marts; 35 data tests. The marts are what the web UI will read |
+| Engine in the browser (Pyodide) | Done. First visit about 15 s to start (about 50 MB), return visit 8 s; demo audit 4 s. Data kept in the browser (OPFS) |
+| Data layer (dbt-style SQL models + data tests) | Done: raw → staging → intermediate → marts; 35 data tests. The web UI reads the marts |
 | Streamlit app (internal) | Done, with Data tab (lineage, table browser, charts, data tests, SQL) |
 | AI assistant + MCP server | Built for local use; moves to the server for the web paid tier |
-| Web frontend (phase B) | **Next**: same screens and features as the Streamlit app, engine running in the browser |
+| Web app (phase B) | **Built**: landing page plus all 9 screens, RO/EN, light/dark, phone layout. Own design (dark rail, cards). Parity checklist: `docs/web-parity-checklist.md` |
 | Login, hosting, domain | After phase B works (Gabriel's decision, 8 Oct) |
 | Competitors | in-balanta.ro (cloud, SPV sync, IBAN-change and inactive-supplier alerts, cash flow; 4,000+ companies) and ARHIVAR (SPV archive, thresholds; 8 RON/company/month). Neither analyses invoice lines |
-| Tests | 67 passing |
+| Tests | 74 Python + 13 browser tests (Edge); engine and landing also pass in Chrome, Firefox and WebKit |
 | Version control | Private GitHub repo gabrieln2805/efactura-audit, branch `main` |
 | Real invoices | **Never tested** |
 | Demand | **Untested** for a self-serve web tool |
@@ -32,15 +33,13 @@ The engine runs unchanged in a browser: the spike (`web/spike/`) imported 964 in
 
 In order; owner in brackets. Details and acceptance checks are in "Action plan" below.
 
-1. **[Claude] B1, engine in the browser and app shell:** the engine runs in a Web Worker, data is kept between
-   visits, and the demo data loads and audits to the same 37 flags.
-2. **[Claude] B2, main screens:** Overview, Flags (with review), Invoices, Suppliers.
-3. **[Claude] B3, remaining screens:** Import, Data, Report, Settings, AI assistant.
-4. **[Claude] B4, landing page, polish and parity check**; **[Gabriel]** review each milestone in the browser
-   and sign off the parity checklist.
-5. **[Gabriel] Phase C set-up** (domain, legal entity, Supabase and Cloudflare accounts) once B works; then
-   login, deploy and the demand test.
-6. **[Both] Phase D:** the differentiators, in the ranked order below.
+1. **[Gabriel] Review phase B:** `cd web/app`, `npm install`, `npm run dev`, open http://127.0.0.1:5180, go
+   through `docs/web-parity-checklist.md` next to the Streamlit app, and sign it off. If possible, also open it
+   on an iPhone or Mac (Safari is the one browser not tested on a real device).
+2. **[Claude] Fixes from the review.**
+3. **[Gabriel] Phase C set-up** (domain, legal entity, Supabase and Cloudflare accounts); then **[Claude]**
+   login, company profile, deploy (including serving Pyodide from our own domain), and **[Gabriel]** the demand test.
+4. **[Both] Phase D:** the differentiators, in the ranked order below.
 
 ## Product direction (ranked 8 Oct 2026)
 
@@ -78,14 +77,15 @@ the reports find. To be validated in the demand test.
 
 ## Action plan
 
-### Phase B: web version of today's tool (about 4–6 weeks)
+### Phase B: web version of today's tool (built 8 Oct 2026; waiting for the sign-off)
 
 **Scope: exactly what the Streamlit app does today.** Same screens, same results, nothing new; the engine
 runs in the browser. Out of scope: login, payments, server, new features.
 
 **Stack:** Vite, React and TypeScript; the engine in a Pyodide Web Worker behind a typed message API; Plotly.js
 (cartesian bundle) so the charts match the current app; `@hpcc-js/wasm-graphviz` for the lineage graph (the same
-Graphviz engine Streamlit uses); TanStack Table; UI strings exported from `app/i18n.py`, so RO/EN has one source;
+Graphviz engine Streamlit uses); a small sortable table component of our own (TanStack Table 9 changed its API
+and was more than needed); UI strings exported from `app/i18n.py`, so RO/EN has one source;
 the database kept in OPFS (the browser's private file storage); Playwright tests in Edge. Node.js 24 is
 installed on the PC.
 
@@ -95,6 +95,10 @@ installed on the PC.
 | **B2. Main screens** (weeks 2–3) | Overview (KPIs, flags by check, monthly spend, top flags); Flags (filters, detail with evidence and price chart, invoices involved, confirm/dismiss with note); Invoices (search, detail with lines and flags); Suppliers (table, monthly spend, bank accounts, flags) | Every element of these four Streamlit tabs is present, with the same numbers on the demo |
 | **B3. Remaining screens** (weeks 3–4) | Import (ZIP/XML upload, buyer CUI filter, data checks, import log); Data (lineage, table browser, charts, data tests, SQL); Report (Excel and PDF download); Settings (thresholds, review statistics); AI assistant (cloud providers off by default, key kept for the session only, same redaction; local Ollama when it allows the site's origin; providers call the APIs with `fetch` instead of httpx) | Same as B2 for these tabs; a deliberately broken workspace shows its failing data tests |
 | **B4. Landing page and finish** (week 5) | Romanian landing page (English too): what the tool does, privacy, "try the demo"; disclaimer on every page; parity checklist against Streamlit; cross-browser check (Edge, Chrome, Firefox, Safari); performance budget | Gabriel signs off the checklist; return-visit load ≤ 10 s; demo audit ≤ 8 s |
+
+**Result:** B1–B4 done and tested automatically; only Gabriel's sign-off is left. Return visit 7.9 s, first visit
+14.9 s, audit 4.1 s (Edge, Gabriel's PC). scikit-learn (with scipy, the slowest packages) loads in the background
+after start-up and is awaited only before an audit, which halved the start-up time.
 
 ### Phase C: accounts and go-live (about 1–2 weeks, after B)
 
@@ -138,6 +142,9 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
   `Stop-Process -Id (Get-NetTCPConnection -LocalPort 8501 -State Listen).OwningProcess -Force`.
 - Workspaces: default `C:\Users\Gabriel\.efactura-audit`; demo `C:\Users\Gabriel\efactura-demo`.
 - Start the app: `scripts\start_app.bat -w C:\Users\Gabriel\efactura-demo`.
+- Web app: `cd web/app`, `npm install` once, then `npm run dev` (http://127.0.0.1:5180) or `npm test`
+  (Playwright in the installed Edge; Firefox and WebKit were installed with `npx playwright install firefox webkit`).
+  The dev server uses the repo's `.venv` to rebuild the engine wheel when Python code changes.
 - Browser spike: `python web/spike/prepare.py`, then
   `python -m http.server 8731 --bind 127.0.0.1 --directory web/spike` and open http://127.0.0.1:8731/.
 - Gotchas already hit: Windows blocks the unsigned `.ps1` (use `scripts\install_windows.bat` or
@@ -148,11 +155,13 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
 
 | Issue | Priority | Note |
 |---|---|---|
-| Demand for a self-serve web tool | High | Phase B tests it |
+| Demand for a self-serve web tool | High | The demand test in phase C |
+| Safari on a real device untested | High | Playwright's WebKit on Windows has no OPFS, so only the "data not kept" warning was checked there. Safari without `createWritable` uses the snapshot fallback (tested in Chromium with `?storage=snapshot`) |
+| Pyodide loads from the jsDelivr CDN | Medium (phase C) | Serve it from our own domain, with a strict content security policy |
+| Local Ollama from the website | Medium | Needs `OLLAMA_ORIGINS` set to the site's address; Chrome may also need Private Network Access headers. The web assistant has no MCP option (no subprocess in a browser) |
 | Real-data validation | High | First real archives come from early web users or friendly companies |
-| Browser: database lost on reload | High (phase C) | Spike uses Pyodide's in-memory file system; use OPFS/IndexedDB or keep the uploaded ZIPs |
-| Browser: first-visit load 16–25 s, 52 MB | Medium | Web Worker started on page open; load report packages only on demand; matplotlib is only there for its font, so ship the DejaVu TTF instead (−7 MB); serve Pyodide from our own origin with a Service Worker |
-| Browser: audit about 3× slower than native | Low | 6 s for 964 invoices; show progress; check with 10k invoices |
+| Browser: first visit about 15 s and 50 MB | Medium | Report packages load only when a report is built, scikit-learn after start-up. Still to do: ship the DejaVu font instead of matplotlib (−7 MB), Service Worker cache |
+| Browser: audit about 2× slower than native | Low | 4 s for 964 invoices; check with 10k invoices |
 | Data-test messages are English only | Medium | Users will see them on the website; add RO text |
 | Engine code is visible in the browser | Accepted | The value is the product, sync and monitoring, not secret rules |
 | Repeat purchases with identical totals raise medium duplicate flags | Medium | Tune after real-data feedback |
@@ -165,6 +174,10 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
 ## Decisions
 
 - **8 Oct 2026:**
+  - The web app has its own design (dark navigation rail, cards, Inter font), not Streamlit's; functions and
+    numbers match.
+  - The assistant runs in the browser engine: providers call the APIs with synchronous XMLHttpRequest from the
+    worker when httpx is missing, so the agent loop, redaction and model test stay unchanged Python.
   - Phase B is an exact web version of today's tool; new features come only after login and go-live.
   - Positioning is purchase control (price intelligence per line, checks before payment, AI that closes the
     loop, privacy), not SPV sync or archiving, which competitors sell at 5–8 RON/month.
@@ -210,9 +223,17 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
   P300 still published; 15 % fine and no VAT deduction for B2B invoices outside e-Factura; ANAF public API for
   supplier status; name-to-IBAN check for RON only from 2027; ViDA 2030). Ranked the differentiators; wrote the
   phased action plan (B: web parity, C: accounts and go-live, D: differentiators, E: paid tier).
+- **8 Oct 2026 (later):** Built phase B, `web/app/`:
+  - B1: `efactura_audit.web` JSON API; Pyodide worker with OPFS storage and a one-tab lock; app shell.
+  - B2: Overview, Flags (with review), Invoices, Suppliers.
+  - B3: Import, Data, Report, Settings, AI assistant.
+  - B4: landing page, disclaimer footer, parity checklist, Chrome/Firefox/WebKit runs, storage fallback for
+    Safari, performance budget met.
+  - Browser tests compare every KPI and caption with the native engine and the Python formatting.
 
 ## For Claude at the start of a session
 
-Read this file, then `README.md`. For web work, read "Action plan" above and `web/spike/README.md`. Run
+Read this file, then `README.md`. For web work, read "Action plan" above and README's "Web app" section; run
+`npm test` in `web/app` after web changes. Run
 `python -m pytest` before changing code; for engine changes, compare flags against the 3-seed snapshot.
 The project doc `claude/status.md` in the "efactura anomaly" Project mirrors this file.

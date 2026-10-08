@@ -10,7 +10,7 @@ async function engineReady(page: Page) {
 }
 
 test("demo audit in the browser matches the native engine and is kept after a reload", async ({ page, context }) => {
-  await page.goto("/");
+  await page.goto("/#/overview");
   await engineReady(page);
   await page.getByRole("button", { name: "Încarcă date demo (sintetice)" }).click();
   await expect(page.getByTestId("kpi-flags")).toContainText(String(native.length), { timeout: 120_000 });
@@ -27,9 +27,17 @@ test("demo audit in the browser matches the native engine and is kept after a re
 
   // a second tab must not open its own copy of the database
   const other = await context.newPage();
-  await other.goto("/");
+  await other.goto("/#/overview");
   await expect(other.getByTestId("engine-chip")).toHaveAttribute("data-phase", "locked", { timeout: 200_000 });
   await other.close();
+
+  // a browser without OPFS (Playwright's WebKit on Windows) must say the data is not kept, instead of losing it silently
+  const persistent = await page.evaluate(() => (window as any).__engine.state.persistent as boolean);
+  if (!persistent) {
+    await expect(page.getByRole("status").filter({ hasText: "nu permite păstrarea datelor" })).toBeVisible();
+    test.info().annotations.push({ type: "storage", description: "no OPFS in this browser: reload persistence not tested" });
+    return;
+  }
 
   await page.reload();
   await engineReady(page);

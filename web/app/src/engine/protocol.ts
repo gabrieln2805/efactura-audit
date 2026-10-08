@@ -4,12 +4,12 @@ export type Stage = "runtime" | "packages" | "engine" | "storage" | "database";
 export const STAGES: Stage[] = ["runtime", "packages", "engine", "storage", "database"];
 
 export type ToWorker =
-  | { type: "init"; base: string }
+  | { type: "init"; base: string; storage?: string }   // storage: "snapshot" forces the fallback (tests)
   | { type: "call"; id: number; method: string; args?: Record<string, unknown>; files?: File[] };
 
 export type FromWorker =
   | { type: "progress"; stage: Stage; done: number; total: number }
-  | { type: "ready"; version: string; persistent: boolean; seconds: number }
+  | { type: "ready"; version: string; persistent: boolean; seconds: number; stages: Record<string, number> }
   | { type: "log"; id: number; text: string }
   | { type: "fatal"; code: "locked" | "error"; error: string }
   | { type: "result"; id: number; ok: true; result?: unknown; bytes?: Uint8Array }

@@ -3,7 +3,7 @@ import {
   Building2, Database, FileDown, FileText, Flag, LayoutDashboard, Lock, Menu, Monitor, Moon, Play, ReceiptText,
   Settings, Sparkles, Sun, Upload,
 } from "lucide-react";
-import { useApp, type Theme } from "./state";
+import { engine, useApp, type Theme } from "./state";
 import { EngineSplash, EngineChip, Spinner, Toasts } from "./components/chrome";
 import { Overview } from "./screens/Overview";
 import { Flags } from "./screens/Flags";
@@ -14,6 +14,7 @@ import { Import } from "./screens/Import";
 import { Report } from "./screens/Report";
 import { Assistant } from "./screens/Assistant";
 import { Settings as SettingsScreen } from "./screens/Settings";
+import { Landing } from "./screens/Landing";
 
 type Screen = { id: string; label: string; icon: ComponentType<{ size?: number }>; view: ComponentType; sep?: boolean };
 
@@ -29,15 +30,16 @@ const SCREENS: Screen[] = [
   { id: "settings", label: "tab_settings", icon: Settings, view: SettingsScreen, sep: true },
 ];
 
+/** "home" (the landing page, no hash) or an app screen id. */
 function useRoute(): string {
-  const read = () => location.hash.replace(/^#\/?/, "").split("?")[0] || "overview";
+  const read = () => location.hash.replace(/^#\/?/, "").split("?")[0] || "home";
   const [route, setRoute] = useState(read);
   useEffect(() => {
     const on = () => setRoute(read());
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
-  return SCREENS.some((s) => s.id === route) ? route : "overview";
+  return route === "home" || SCREENS.some((s) => s.id === route) ? route : "overview";
 }
 
 const THEMES: Theme[] = ["system", "light", "dark"];
@@ -49,7 +51,7 @@ function Rail({ route, onNavigate }: { route: string; onNavigate: () => void }) 
   const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
   return (
     <aside className="rail">
-      <a className="brand" href="#/overview" onClick={onNavigate}>
+      <a className="brand" href="#/" onClick={onNavigate}>
         <span className="brand-mark"><ReceiptText size={17} /></span>
         <span className="brand-name">auditefactura<span>.ro</span></span>
       </a>
@@ -111,12 +113,22 @@ function TopBar({ screen }: { screen: Screen }) {
   );
 }
 
-export default function App() {
-  const { engine, L } = useApp();
-  const route = useRoute();
+/** "#/overview?demo" (the landing page's demo button): load the demo once the engine is ready, if there is no data. */
+function useDemoLink() {
+  const { engine: es, status, mutate, toast, L } = useApp();
+  useEffect(() => {
+    if (!location.hash.includes("?demo") || es.phase !== "ready" || !status) return;
+    history.replaceState(null, "", location.hash.replace("?demo", ""));
+    if (status.invoices === 0) mutate("load_demo").then((r) => r && toast(L("demo_loaded")));
+  }, [es.phase, status, mutate, toast, L]);
+}
+
+function Shell({ route }: { route: string }) {
+  const { engine: es, L } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const screen = SCREENS.find((s) => s.id === route)!;
   const View = screen.view;
+  useDemoLink();
   useEffect(() => {
     document.title = `${L(screen.label)} · auditefactura.ro`;
   }, [screen, L]);
@@ -131,10 +143,23 @@ export default function App() {
         </div>
         <TopBar screen={screen} />
         <div className="content">
-          {engine.phase === "ready" ? <View /> : <EngineSplash />}
+          {es.phase === "ready" && !es.persistent && <div className="callout warn" role="status">{L("not_persistent")}</div>}
+          {es.phase === "ready" ? <View /> : <EngineSplash />}
         </div>
+        <footer className="app-foot">{L("disclaimer")}</footer>
       </main>
       <Toasts />
     </div>
   );
+}
+
+export default function App() {
+  const route = useRoute();
+  const inApp = route !== "home";
+  useEffect(() => {
+    if (inApp) engine.start();
+    else document.title = "auditefactura.ro · audit e-Factura în browser";
+    window.scrollTo(0, 0);
+  }, [inApp]);
+  return inApp ? <Shell route={route} /> : <><Landing /><Toasts /></>;
 }

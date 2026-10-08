@@ -203,6 +203,8 @@ S = {
     "you": ("Dvs.", "You"),
     "send": ("Trimite", "Send"),
     "source": ("Sursă", "Source"),
+    "not_persistent": ("Acest browser nu permite păstrarea datelor: facturile importate se pierd când închideți pagina.",
+                       "This browser does not allow storing data: imported invoices are lost when you close the page."),
 }
 
 CHECKS = {

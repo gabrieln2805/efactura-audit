@@ -85,7 +85,6 @@ export function Overview() {
           <DataTable rows={data.top_flags} cols={cols} lang={lang} rowKey={(r) => r.flag_id} testId="top-flags" />
         </div>
       </section>
-      <div className="disclaimer">{L("disclaimer")}</div>
     </>
   );
 }
