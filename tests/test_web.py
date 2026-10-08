@@ -76,3 +76,14 @@ def test_errors_come_back_as_json(api):
 
 def test_report_returns_bytes(api):
     assert api.call("report", json.dumps({"kind": "pdf", "lang": "ro"}))[:5] == b"%PDF-"
+
+
+def test_assistant_methods(api, monkeypatch, tmp_path):
+    monkeypatch.setenv("EFACTURA_MODELS", str(tmp_path / "models.json"))
+    opts = call(api, "assistant_options", provider="openai", cloud_enabled=True, allow_untested=True)
+    assert opts["providers"][0] == "ollama" and "openai" in opts["providers"]
+    assert opts["models"] and not any(m["approved"] for m in opts["models"])
+    assert call(api, "assistant_options")["providers"] == ["ollama"]
+    assert call(api, "tested_models") == []
+    no_key = json.loads(api.call("ask", json.dumps({"provider": "openai", "model": "x", "question": "?"})))
+    assert not no_key["ok"] and "API key" in no_key["error"]

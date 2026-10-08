@@ -106,6 +106,24 @@ def write_fixture() -> None:
     }
     (FIXTURE.parent / "demo_expect.json").write_text(json.dumps(expect, indent=1, ensure_ascii=False),
                                                      encoding="utf-8", newline="\n")
+    write_broken_upload()
+
+
+def write_broken_upload() -> None:
+    """A ZIP of 4 invoice XMLs, one issued to a different buyer: the import works and the data tests warn."""
+    import zipfile
+    from datetime import date
+
+    from efactura_audit.ubl_writer import InvoiceDoc, Line, Party, render
+    sup = Party("Furnizor Test SRL", "18547290", iban="RO49AAAA1B31007593840000")
+    buyer, other = Party("Client SRL", "14399840"), Party("Alt Client SRL", "40000004")
+    docs = [InvoiceDoc(number=f"FT-{100 + m}", issue_date=date(2025, 1 + m, 10), supplier=sup, buyer=buyer,
+                       lines=[Line("Hartie copiator A4 80g", 10 + m, 24.5, 21.0)]) for m in range(3)]
+    docs.append(InvoiceDoc(number="FT-900", issue_date=date(2025, 5, 2), supplier=sup, buyer=other,
+                           lines=[Line("Toner HP 85A", 1, 210.0, 21.0)]))
+    with zipfile.ZipFile(FIXTURE.parent / "broken_upload.zip", "w") as z:
+        for i, d in enumerate(docs):
+            z.writestr(f"{5000000000 + i}.xml", render(d))
 
 
 def main() -> None:
@@ -113,7 +131,7 @@ def main() -> None:
     digest = source_hash()
     manifest = PY_OUT / "manifest.json"
     current = json.loads(manifest.read_text(encoding="utf-8")).get("hash") if manifest.exists() else None
-    if current == digest and (FIXTURE.parent / "demo_expect.json").exists() and any(PY_OUT.glob("*.whl")):
+    if current == digest and (FIXTURE.parent / "broken_upload.zip").exists() and any(PY_OUT.glob("*.whl")):
         print(f"engine unchanged ({digest}), wheel and fixture kept")
         return
     build_wheel(digest)

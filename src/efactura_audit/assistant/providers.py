@@ -12,11 +12,17 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-import httpx
+try:
+    import httpx
+except ImportError:   # the browser build (Pyodide) has no httpx: requests go through the worker's XMLHttpRequest
+    httpx = None
+
+IN_BROWSER = sys.platform == "emscripten"
 
 CLOUD_PROVIDERS = {"anthropic", "openai", "mistral"}
 
@@ -74,6 +80,13 @@ class Provider:
         raise NotImplementedError
 
     def _post(self, url: str, payload: dict, headers: dict | None = None) -> dict:
+        if httpx is None:
+            status, text = browser_request("POST", url, json.dumps(payload), headers or {}, self.timeout)
+            if status == 0:
+                raise ProviderError(f"{self.name}: cannot reach {url} (network error or blocked by CORS)")
+            if status >= 400:
+                raise ProviderError(f"{self.name}: HTTP {status} — {text[:400]}")
+            return json.loads(text)
         try:
             r = httpx.post(url, json=payload, headers=headers or {}, timeout=self.timeout)
         except httpx.HTTPError as exc:
@@ -81,6 +94,24 @@ class Provider:
         if r.status_code >= 400:
             raise ProviderError(f"{self.name}: HTTP {r.status_code} — {r.text[:400]}")
         return r.json()
+
+
+def browser_request(method: str, url: str, body: str | None, headers: dict, timeout: float) -> tuple[int, str]:
+    """Synchronous HTTP from Pyodide in a Web Worker (sync XMLHttpRequest is allowed there). Status 0 = no response."""
+    import js  # noqa: PLC0415 - only exists in Pyodide
+
+    xhr = js.XMLHttpRequest.new()
+    xhr.open(method, url, False)
+    xhr.timeout = int(timeout * 1000)
+    if body is not None:
+        xhr.setRequestHeader("Content-Type", "application/json")
+    for k, v in headers.items():
+        xhr.setRequestHeader(k, v)
+    try:
+        xhr.send(body)
+    except Exception:  # noqa: BLE001 - network error, CORS or timeout
+        return 0, ""
+    return int(xhr.status), str(xhr.responseText or "")
 
 
 def _openai_tools(tools: list[dict]) -> list[dict]:
@@ -182,7 +213,9 @@ class AnthropicProvider(Provider):
         data = self._post(f"{(self.base_url or 'https://api.anthropic.com').rstrip('/')}/v1/messages", {
             "model": self.model, "system": system, "messages": msgs, "max_tokens": 2000, "temperature": 0,
             "tools": [{"name": t["name"], "description": t["description"], "input_schema": t["parameters"]} for t in tools],
-        }, {"x-api-key": self.api_key, "anthropic-version": "2023-06-01"})
+        }, {"x-api-key": self.api_key, "anthropic-version": "2023-06-01",
+            # the user's own key, called from their own browser: Anthropic requires this opt-in for CORS
+            **({"anthropic-dangerous-direct-browser-access": "true"} if IN_BROWSER else {})})
         text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
         calls = [{"id": b["id"], "name": b["name"], "arguments": b.get("input") or {}}
                  for b in data.get("content", []) if b.get("type") == "tool_use"]
@@ -215,8 +248,12 @@ def make_provider(provider: str, model: str, api_key: str = "", base_url: str = 
 
 def ollama_models(base_url: str = "http://localhost:11434") -> list[str]:
     """Models installed in the local Ollama, or [] if Ollama is not running."""
+    url = f"{base_url.rstrip('/')}/api/tags"
     try:
-        r = httpx.get(f"{base_url.rstrip('/')}/api/tags", timeout=3)
+        if httpx is None:
+            status, text = browser_request("GET", url, None, {}, 3)
+            return [m["name"] for m in json.loads(text).get("models", [])] if status == 200 else []
+        r = httpx.get(url, timeout=3)
         return [m["name"] for m in r.json().get("models", [])]
     except Exception:  # noqa: BLE001
         return []

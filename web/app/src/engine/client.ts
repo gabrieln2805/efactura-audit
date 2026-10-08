@@ -13,7 +13,7 @@ export class EngineError extends Error {
   }
 }
 
-type Pending = { resolve: (v: any) => void; reject: (e: unknown) => void };
+type Pending = { resolve: (v: any) => void; reject: (e: unknown) => void; onLog?: (text: string) => void };
 
 export class Engine {
   state: EngineState = { phase: "loading", stage: "runtime", done: 0, total: 0 };
@@ -47,6 +47,9 @@ export class Engine {
       case "ready":
         this.setState({ phase: "ready", version: m.version, persistent: m.persistent, seconds: m.seconds });
         break;
+      case "log":
+        this.pending.get(m.id)?.onLog?.(m.text);
+        break;
       case "fatal":
         this.setState(m.code === "locked" ? { phase: "locked" } : { phase: "error", error: m.error });
         for (const p of this.pending.values()) p.reject(new EngineError(m.error));
@@ -63,10 +66,11 @@ export class Engine {
   }
 
   /** Call one method of efactura_audit.web.Api. Waits for the engine to be ready. */
-  call<T = unknown>(method: string, args: Record<string, unknown> = {}, files?: File[]): Promise<T> {
+  call<T = unknown>(method: string, args: Record<string, unknown> = {}, files?: File[],
+                    onLog?: (text: string) => void): Promise<T> {
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, { resolve, reject, onLog });
       this.worker.postMessage({ type: "call", id, method, args, files });
     });
   }

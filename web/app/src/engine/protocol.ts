@@ -10,6 +10,7 @@ export type ToWorker =
 export type FromWorker =
   | { type: "progress"; stage: Stage; done: number; total: number }
   | { type: "ready"; version: string; persistent: boolean; seconds: number }
+  | { type: "log"; id: number; text: string }
   | { type: "fatal"; code: "locked" | "error"; error: string }
   | { type: "result"; id: number; ok: true; result?: unknown; bytes?: Uint8Array }
   | { type: "result"; id: number; ok: false; error: string; trace?: string };

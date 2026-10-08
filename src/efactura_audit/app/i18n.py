@@ -164,8 +164,6 @@ S = {
     "theme_light": ("Luminoasă", "Light"),
     "theme_dark": ("Întunecată", "Dark"),
     "menu": ("Meniu", "Menu"),
-    "screen_pending": ("Acest ecran urmează în etapa următoare a versiunii web.",
-                       "This screen comes in the next step of the web version."),
     "close": ("Închide", "Close"),
     "score": ("Scor", "Score"),
     "col_cui": ("CUI", "CUI"),
@@ -193,6 +191,18 @@ S = {
     "chart_before": ("istoric", "before"),
     "chart_flagged": ("semnalat", "flagged"),
     "clear_filters": ("Șterge filtrele", "Clear filters"),
+    "drop_files": ("Trageți aici arhivele ZIP sau fișierele XML, sau", "Drop ZIP archives or XML files here, or"),
+    "choose_files": ("alegeți fișiere", "choose files"),
+    "choose_folder": ("alegeți un folder", "choose a folder"),
+    "files_chosen": ("{n} fișiere alese · {mb} MB", "{n} files chosen · {mb} MB"),
+    "clear": ("Golește", "Clear"),
+    "thresholds_web": ("Pragurile folosite de audit (valorile implicite).", "Thresholds used by the audit (default values)."),
+    "no_ollama_web": ("Site-ul îl poate folosi doar dacă Ollama pornește cu OLLAMA_ORIGINS setat la adresa site-ului.",
+                      "The site can use it only if Ollama starts with OLLAMA_ORIGINS set to the site's address."),
+    "test_log": ("Desfășurare test", "Test progress"),
+    "you": ("Dvs.", "You"),
+    "send": ("Trimite", "Send"),
+    "source": ("Sursă", "Source"),
 }
 
 CHECKS = {

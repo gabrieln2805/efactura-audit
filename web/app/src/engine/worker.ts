@@ -10,7 +10,7 @@ const PYODIDE_URL: string = import.meta.env.VITE_PYODIDE_URL ?? "https://cdn.jsd
 const DATA_DIR = "/data";
 const LOCK = "efactura-audit-db";
 // methods that write to the database: the file is flushed to OPFS after each
-const WRITES = new Set(["load_demo", "import_files", "run_audit", "set_feedback", "reset", "rerun_tests"]);
+const WRITES = new Set(["load_demo", "import_files", "run_audit", "set_feedback", "reset", "rerun_tests", "model_test"]);
 
 type Manifest = { wheel: string; version: string; hash: string; packages: string[];
                   report_packages: { pyodide: string[]; pypi: string[] } };
@@ -37,6 +37,7 @@ let persistent = false;
 let manifest: Manifest;
 let reportsReady: Promise<void> | null = null;
 let queue: Promise<unknown> = Promise.resolve();   // one engine call at a time
+let currentId = 0;   // the call that progress lines belong to
 
 async function acquireLock(): Promise<boolean> {
   // a second tab would open its own copy of the database and the two would overwrite each other
@@ -93,9 +94,12 @@ async function boot(base: string): Promise<void> {
   }
 
   progress("database");
+  (py.globals as any).set("_emit", (text: string) => post({ type: "log", id: currentId, text: String(text) }));
   api = await py.runPythonAsync(`
 from efactura_audit.web import Api
-Api("${DATA_DIR}")
+api = Api("${DATA_DIR}")
+api._progress = _emit
+api
 `);
   await flush();   // a first visit creates the database; a new version may have rebuilt the models
   post({ type: "ready", version: manifest.version, persistent,
@@ -136,6 +140,7 @@ async function handle(msg: Extract<ToWorker, { type: "call" }>): Promise<void> {
       args.paths = uploads;
     }
     if (msg.method === "report") await ensureReportPackages();
+    currentId = msg.id;
     const out = api.call(msg.method, JSON.stringify(args));
     if (WRITES.has(msg.method)) await flush();
     if (typeof out === "string") {

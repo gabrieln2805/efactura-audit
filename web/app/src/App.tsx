@@ -9,7 +9,11 @@ import { Overview } from "./screens/Overview";
 import { Flags } from "./screens/Flags";
 import { Invoices } from "./screens/Invoices";
 import { Suppliers } from "./screens/Suppliers";
-import { Pending } from "./screens/Pending";
+import { Data } from "./screens/Data";
+import { Import } from "./screens/Import";
+import { Report } from "./screens/Report";
+import { Assistant } from "./screens/Assistant";
+import { Settings as SettingsScreen } from "./screens/Settings";
 
 type Screen = { id: string; label: string; icon: ComponentType<{ size?: number }>; view: ComponentType; sep?: boolean };
 
@@ -18,11 +22,11 @@ const SCREENS: Screen[] = [
   { id: "flags", label: "tab_flags", icon: Flag, view: Flags },
   { id: "invoices", label: "tab_invoices", icon: FileText, view: Invoices },
   { id: "suppliers", label: "tab_suppliers", icon: Building2, view: Suppliers },
-  { id: "data", label: "tab_data", icon: Database, view: Pending, sep: true },
-  { id: "import", label: "tab_import", icon: Upload, view: Pending },
-  { id: "report", label: "tab_report", icon: FileDown, view: Pending, sep: true },
-  { id: "assistant", label: "tab_assistant", icon: Sparkles, view: Pending },
-  { id: "settings", label: "tab_settings", icon: Settings, view: Pending, sep: true },
+  { id: "data", label: "tab_data", icon: Database, view: Data, sep: true },
+  { id: "import", label: "tab_import", icon: Upload, view: Import },
+  { id: "report", label: "tab_report", icon: FileDown, view: Report, sep: true },
+  { id: "assistant", label: "tab_assistant", icon: Sparkles, view: Assistant },
+  { id: "settings", label: "tab_settings", icon: Settings, view: SettingsScreen, sep: true },
 ];
 
 function useRoute(): string {

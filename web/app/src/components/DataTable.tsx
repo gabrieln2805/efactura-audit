@@ -26,6 +26,8 @@ type Props<T> = {
   maxHeight?: number;
   testId?: string;
   yesNo?: [string, string];
+  /** keep every cell on one line (result grids) */
+  nowrap?: boolean;
 };
 
 export function formatCell(v: unknown, kind: Kind | undefined, lang: Lang, yesNo: [string, string] = ["✓", ""]): ReactNode {
@@ -51,7 +53,7 @@ function compare(a: unknown, b: unknown): number {
   return collator.compare(String(a), String(b));
 }
 
-export function DataTable<T>({ rows, cols, lang, rowKey, selected, onSelect, maxHeight = 420, testId, yesNo }: Props<T>) {
+export function DataTable<T>({ rows, cols, lang, rowKey, selected, onSelect, maxHeight = 420, testId, yesNo, nowrap }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; desc: boolean } | null>(null);
   const valueOf = (c: Col<T>, r: T) => (c.value ? c.value(r) : (r as Record<string, unknown>)[c.key]);
   const keyed = useMemo(() => rows.map((r, i) => ({ r, k: rowKey ? rowKey(r, i) : String(i) })), [rows, rowKey]);
@@ -70,7 +72,7 @@ export function DataTable<T>({ rows, cols, lang, rowKey, selected, onSelect, max
   const numeric = (k?: Kind) => k === "num" || k === "money" || k === "int";
   return (
     <div className="table-wrap" style={{ maxHeight }} data-testid={testId}>
-      <table className={`table${onSelect ? " selectable" : ""}`}>
+      <table className={`table${onSelect ? " selectable" : ""}${nowrap ? " nowrap" : ""}`}>
         <thead>
           <tr>
             {cols.map((c) => {
@@ -124,5 +126,5 @@ export function ResultTable({ data, lang, labels = {}, maxHeight, testId }:
   const cols = useMemo<Col<unknown[]>[]>(() => data.columns.map((c, i) => ({
     key: `${i}`, label: labels[c] ?? c, kind: kindOf(data.types?.[i]), value: (r) => r[i],
   })), [data, labels]);
-  return <DataTable rows={data.rows} cols={cols} lang={lang} maxHeight={maxHeight} testId={testId} />;
+  return <DataTable rows={data.rows} cols={cols} lang={lang} maxHeight={maxHeight} testId={testId} nowrap />;
 }

@@ -12,13 +12,15 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
+import sys
 import tempfile
 import time
 import traceback
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -78,6 +80,9 @@ def table(df: pd.DataFrame) -> dict:
 class Api:
     def __init__(self, root: str | Path):
         self.root = Path(root)
+        if sys.platform == "emscripten":   # in the browser the tested-model list lives with the data (OPFS)
+            os.environ.setdefault("EFACTURA_MODELS", str(self.root / "approved_models.json"))
+        self._progress: Callable[[str], None] | None = None   # set by the web worker for long calls
         self.ws = load_workspace(self.root)
         self.store = Store(self.ws.db_path)
 
@@ -359,8 +364,70 @@ class Api:
             return pdf_report(self.store, lang)
         raise ValueError("kind must be xlsx or pdf")
 
+    # ------------------------------------------------------------------ assistant
+    def _assistant_cfg(self) -> dict:
+        return self.ws.section("assistant")
+
+    def _ollama_url(self) -> str:
+        return self._assistant_cfg().get("ollama_url", "http://localhost:11434")
+
+    def assistant_options(self, provider: str = "ollama", cloud_enabled: bool = False,
+                          allow_untested: bool = False) -> dict:
+        """Providers on offer and the models for one of them: Romanian-tested first, then untested when allowed."""
+        from .assistant.evaluation import approved_models
+        from .assistant.providers import CLOUD_PROVIDERS, SUGGESTED_MODELS, ollama_models
+        providers = ["ollama"] + (sorted(CLOUD_PROVIDERS) if cloud_enabled else [])
+        approved = [m["model"] for m in approved_models(self.ws) if m["provider"] == provider]
+        options = list(approved)
+        if allow_untested:
+            extra = ollama_models(self._ollama_url()) if provider == "ollama" else []
+            options += [m for m in extra + SUGGESTED_MODELS.get(provider, []) if m not in options]
+        return {"providers": providers, "cloud": sorted(CLOUD_PROVIDERS),
+                "models": [{"model": m, "approved": m in approved} for m in options]}
+
+    def ask(self, provider: str, model: str, question: str, history: list[dict] | None = None,
+            api_key: str = "", lang: str = "ro") -> dict:
+        """One assistant answer with the tool calls it was built from. The key is used for this call only."""
+        from .assistant.agent import Assistant
+        from .assistant.backends import LocalBackend
+        from .assistant.providers import make_provider
+        from .assistant.tools import AuditTools
+        tools = AuditTools(self.store, lang)
+        prov = make_provider(provider, model, api_key, self._ollama_url() if provider == "ollama" else "")
+        ans = Assistant(prov, LocalBackend(tools), tools.audit_overview(),
+                        int(self._assistant_cfg().get("max_tool_rounds", 6))).ask(question, history or [])
+        return {"text": ans.text, "error": ans.error,
+                "trace": [{"name": t.name, "arguments": t.arguments, "result": t.result} for t in ans.trace]}
+
+    def ollama_status(self) -> dict:
+        from .assistant.providers import ollama_models
+        return {"url": self._ollama_url(), "models": ollama_models(self._ollama_url())}
+
+    def model_suggestions(self, provider: str) -> list[str]:
+        from .assistant.providers import SUGGESTED_MODELS, ollama_models
+        installed = ollama_models(self._ollama_url()) if provider == "ollama" else []
+        return list(dict.fromkeys(installed + SUGGESTED_MODELS.get(provider, [])))
+
+    def model_test(self, provider: str, model: str, api_key: str = "") -> dict:
+        """Run the Romanian task set on synthetic data; passing models are offered in the assistant."""
+        from .assistant.evaluation import run_model_test, save_result
+        from .assistant.providers import make_provider
+        prov = make_provider(provider, model, api_key, self._ollama_url() if provider == "ollama" else "")
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_model_test(prov, Path(tmp), progress=self._progress)
+        save_result(self.ws, result)
+        return {"passed": result.passed, "summary": result.summary()}
+
+    def tested_models(self) -> list[dict]:
+        from .assistant.evaluation import load_approved
+        keys = ("provider", "model", "score", "structured_ok", "passed", "tested_at")
+        return [{k: m.get(k) for k in keys} for m in load_approved(self.ws)]
+
     # ------------------------------------------------------------------ settings
     def settings(self) -> dict:
         fb = self.store.feedback_stats()
-        return {"settings": self.ws.settings, "feedback": records(fb), "config_path": str(self.ws.config_path)}
+        cfg = self._assistant_cfg()
+        return {"settings": self.ws.settings, "feedback": records(fb), "config_path": str(self.ws.config_path),
+                "cloud_enabled": bool(cfg.get("cloud_enabled", False)),
+                "allow_untested": bool(cfg.get("allow_untested_models", False))}
 

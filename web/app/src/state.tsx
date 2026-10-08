@@ -39,7 +39,7 @@ type Ctx = {
   status: Status | null;
   busy: string | null;
   /** Run an engine call that changes data: shows the busy state, bumps the data version, reports errors. */
-  mutate: <T>(method: string, args?: Record<string, unknown>, files?: File[]) => Promise<T | undefined>;
+  mutate: <T>(method: string, args?: Record<string, unknown>, files?: File[], onLog?: (text: string) => void) => Promise<T | undefined>;
   toast: (text: string, kind?: Toast["kind"]) => void;
   toasts: Toast[];
 };
@@ -76,10 +76,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== id)), kind === "error" ? 9000 : 4500);
   }, []);
 
-  const mutate = useCallback(async <T,>(method: string, args: Record<string, unknown> = {}, files?: File[]) => {
+  const mutate = useCallback(async <T,>(method: string, args: Record<string, unknown> = {}, files?: File[],
+                                      onLog?: (text: string) => void) => {
     setBusy(method);
     try {
-      const result = await engine.call<T>(method, args, files);
+      const result = await engine.call<T>(method, args, files, onLog);
       setVersion((v) => v + 1);
       // keep the database when the browser is short of space (needs the page, not the worker)
       navigator.storage?.persist?.().catch(() => {});
@@ -124,4 +125,17 @@ export function useCall<T>(method: string, args: Record<string, unknown> = {}, e
     return () => { live = false; };
   }, [method, key, version, ready, enabled, nonce]);
   return { ...state, reload: () => setNonce((n) => n + 1) };
+}
+
+/** A per-browser preference (localStorage), e.g. the Settings toggles. */
+export function usePref(key: string, fallback: boolean): [boolean, (v: boolean) => void] {
+  const [v, setV] = useState(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? fallback : raw === "1";
+    } catch {
+      return fallback;
+    }
+  });
+  return [v, (next) => { setV(next); store(key, next ? "1" : "0"); }];
 }
