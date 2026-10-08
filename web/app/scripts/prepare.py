@@ -68,16 +68,44 @@ def build_wheel(digest: str) -> None:
 
 
 def write_fixture() -> None:
+    """The native engine's results on the demo, and what the Streamlit app shows for them (Romanian formatting)."""
+    from efactura_audit.app.i18n import fmt_compact, fmt_lei, tr
     from efactura_audit.web import Api
+
+    def res(api, method, **args):
+        return json.loads(api.call(method, json.dumps(args)))["result"]
+
     with tempfile.TemporaryDirectory() as tmp:
         api = Api(tmp)
         api.call("load_demo")
-        flags = json.loads(api.call("flags"))["result"]
+        flags = res(api, "flags")
+        ov = res(api, "overview", lang="ro")["overview"]
+        inv = res(api, "search_invoices")
+        betonex = res(api, "search_invoices", supplier="Betonex")
+        sups = res(api, "suppliers")
         api.store = None   # release the DuckDB file before the folder is removed
     FIXTURE.parent.mkdir(parents=True, exist_ok=True)
     rows = sorted(({k: f[k] for k in ("flag_id", "check_name", "rule", "severity", "score", "amount_at_risk_ron")}
                    for f in flags), key=lambda f: f["flag_id"])
     FIXTURE.write_text(json.dumps(rows, indent=1), encoding="utf-8", newline="\n")
+
+    def matching(n, amt):
+        return tr("matching", "ro", n=n, amt=fmt_lei(amt, "ro"))
+
+    price = [f for f in flags if f["check_name"] == "price_increase"]
+    expect = {
+        "kpi": {"invoices": f"{ov['invoices']:,}".replace(",", "."), "suppliers": str(ov["suppliers"]),
+                "spend": fmt_compact(ov["total_spend_ron"], "ro"), "flags": str(ov["flags_total"]),
+                "to_review": fmt_compact(ov["amount_to_review_ron"], "ro")},
+        "flags_caption": matching(len(flags), sum(f["amount_at_risk_ron"] or 0 for f in flags)),
+        "price_caption": matching(len(price), sum(f["amount_at_risk_ron"] or 0 for f in price)),
+        "invoices_caption": matching(inv["total_matching"], inv["total_amount_ron"]) + " · max 100",
+        "betonex_caption": matching(betonex["total_matching"], betonex["total_amount_ron"])
+                           + (" · max 100" if betonex["total_matching"] > 100 else ""),
+        "suppliers": len(sups), "top_supplier": sups[0]["supplier_name"],
+    }
+    (FIXTURE.parent / "demo_expect.json").write_text(json.dumps(expect, indent=1, ensure_ascii=False),
+                                                     encoding="utf-8", newline="\n")
 
 
 def main() -> None:
@@ -85,7 +113,7 @@ def main() -> None:
     digest = source_hash()
     manifest = PY_OUT / "manifest.json"
     current = json.loads(manifest.read_text(encoding="utf-8")).get("hash") if manifest.exists() else None
-    if current == digest and FIXTURE.exists() and any(PY_OUT.glob("*.whl")):
+    if current == digest and (FIXTURE.parent / "demo_expect.json").exists() and any(PY_OUT.glob("*.whl")):
         print(f"engine unchanged ({digest}), wheel and fixture kept")
         return
     build_wheel(digest)

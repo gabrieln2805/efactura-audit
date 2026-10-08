@@ -6,15 +6,18 @@ import {
 import { useApp, type Theme } from "./state";
 import { EngineSplash, EngineChip, Spinner, Toasts } from "./components/chrome";
 import { Overview } from "./screens/Overview";
+import { Flags } from "./screens/Flags";
+import { Invoices } from "./screens/Invoices";
+import { Suppliers } from "./screens/Suppliers";
 import { Pending } from "./screens/Pending";
 
 type Screen = { id: string; label: string; icon: ComponentType<{ size?: number }>; view: ComponentType; sep?: boolean };
 
 const SCREENS: Screen[] = [
   { id: "overview", label: "tab_overview", icon: LayoutDashboard, view: Overview },
-  { id: "flags", label: "tab_flags", icon: Flag, view: Pending },
-  { id: "invoices", label: "tab_invoices", icon: FileText, view: Pending },
-  { id: "suppliers", label: "tab_suppliers", icon: Building2, view: Pending },
+  { id: "flags", label: "tab_flags", icon: Flag, view: Flags },
+  { id: "invoices", label: "tab_invoices", icon: FileText, view: Invoices },
+  { id: "suppliers", label: "tab_suppliers", icon: Building2, view: Suppliers },
   { id: "data", label: "tab_data", icon: Database, view: Pending, sep: true },
   { id: "import", label: "tab_import", icon: Upload, view: Pending },
   { id: "report", label: "tab_report", icon: FileDown, view: Pending, sep: true },

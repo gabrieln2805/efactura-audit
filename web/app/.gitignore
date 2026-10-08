@@ -6,3 +6,4 @@ playwright-report/
 public/py/
 src/i18n/strings.json
 tests/fixtures/
+tsconfig.tsbuildinfo

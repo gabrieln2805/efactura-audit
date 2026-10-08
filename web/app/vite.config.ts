@@ -6,6 +6,8 @@ export default defineConfig({
   base: "./",
   plugins: [react()],
   worker: { format: "es" },
+  // Plotly is one lazily loaded chunk (~480 kB gzipped), fetched with the first chart
+  build: { chunkSizeWarningLimit: 1600 },
   server: { host: "127.0.0.1", port: 5180, strictPort: true },
   preview: { host: "127.0.0.1", port: 5181, strictPort: true },
 });
