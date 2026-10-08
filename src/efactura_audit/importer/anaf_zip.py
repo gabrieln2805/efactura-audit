@@ -44,7 +44,10 @@ def _iter_zip(data: bytes, label: str, depth: int, zip_id: str = "") -> Iterator
             name = info.filename
             lower = name.lower()
             if lower.endswith(".zip"):
-                yield from _iter_zip(zf.read(info), f"{label}/{name}", depth + 1, _anaf_id(name))
+                try:
+                    yield from _iter_zip(zf.read(info), f"{label}/{name}", depth + 1, _anaf_id(name))
+                except zipfile.BadZipFile:
+                    yield XmlSource(f"{label}/{name}", b"", "")  # reported as a failed import
             elif lower.endswith(".xml") and not _is_signature(name):
                 yield XmlSource(f"{label}/{name}", zf.read(info), _anaf_id(name) or zip_id)
 
@@ -71,6 +74,9 @@ def iter_uploaded(name: str, data: bytes) -> Iterator[XmlSource]:
     """Same as iter_sources, for a file uploaded through the app (bytes in memory)."""
     lower = name.lower()
     if lower.endswith(".zip"):
-        yield from _iter_zip(data, name, 0, _anaf_id(name))
+        try:
+            yield from _iter_zip(data, name, 0, _anaf_id(name))
+        except zipfile.BadZipFile:
+            yield XmlSource(name, b"", "")  # reported as a failed import
     elif lower.endswith(".xml") and not _is_signature(name):
         yield XmlSource(name, data, _anaf_id(name))

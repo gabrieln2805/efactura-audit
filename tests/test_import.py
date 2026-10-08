@@ -106,3 +106,13 @@ def test_synthetic_dataset_imports_cleanly(demo):
     assert demo["store"].count_invoices() == demo["summary"]["invoices"]
     eur = demo["store"].df("SELECT fx_to_ron FROM fct_invoices WHERE currency = 'EUR'")
     assert not eur.empty and eur["fx_to_ron"].between(4.8, 5.2).all()
+
+
+def test_corrupt_zip_upload_fails_only_that_file(tmp_path):
+    good = _zip({"4001.xml": render(doc())})
+    outer = _zip({"4001.zip": good, "4002.zip": b"PK\x03\x04 truncated", "4003.xml": render(doc(number="TF-103"))})
+    store = Store(tmp_path / "a.duckdb")
+    res = import_sources(store, iter_uploaded("export.zip", outer))
+    assert (res.imported, res.failed) == (2, 1) and "4002.zip" in res.errors[0]
+    res = import_sources(store, iter_uploaded("broken.zip", b"not a zip at all"))
+    assert (res.imported, res.failed) == (0, 1)
