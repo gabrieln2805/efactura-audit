@@ -74,6 +74,58 @@ def test_errors_come_back_as_json(api):
     assert not json.loads(api.call("nope"))["ok"]
 
 
+def test_imports_can_be_removed_trimmed_and_reset(tmp_path):
+    import zipfile
+    from datetime import date
+
+    from efactura_audit.ubl_writer import InvoiceDoc, Line, Party, render
+    sup = Party("Furnizor Test SRL", "18547290", iban="RO49AAAA1B31007593840000")
+    a, b = Party("Client SRL", "14399840"), Party("Alt Client SRL", "40000004")
+
+    def upload(name, docs):
+        path = tmp_path / name
+        with zipfile.ZipFile(path, "w") as z:
+            for i, d in enumerate(docs):
+                z.writestr(f"{abs(hash((name, i)))}.xml", render(d))
+        return str(path)
+
+    def docs(buyer, prefix, n):
+        return [InvoiceDoc(number=f"{prefix}-{i}", issue_date=date(2025, 1 + i, 10), supplier=sup, buyer=buyer,
+                           lines=[Line("Hartie copiator A4 80g", 10 + i, 24.5, 21.0)]) for i in range(n)]
+
+    api = Api(tmp_path / "ws")
+    first = call(api, "import_files", paths=[upload("0-client_a.zip", docs(a, "FA", 4))])
+    call(api, "import_files", paths=[upload("0-client_b.zip", docs(b, "FB", 3))])
+    hist = call(api, "imports")
+    assert [h["sources"] for h in hist] == ["client_b.zip", "client_a.zip"]   # newest first, original names
+    assert [h["invoices_kept"] for h in hist] == [3, 4]
+    assert {x["buyer_cui"]: x["invoices"] for x in call(api, "buyers")} == {"14399840": 4, "40000004": 3}
+
+    assert call(api, "keep_buyer", buyer_cui="14399840")["removed"] == 3
+    assert call(api, "status")["invoices"] == 4
+    assert call(api, "delete_import", import_id=first["import_id"])["removed"] == 4
+    assert call(api, "status")["invoices"] == 0 and len(call(api, "imports")) == 1   # B's import, now empty
+
+    call(api, "import_files", paths=[upload("0-again.zip", docs(a, "FA", 4))])
+    call(api, "set_feedback", flag_id="PRI-0000000000", status="dismissed")
+    call(api, "reset")
+    assert call(api, "status")["invoices"] == 0 and call(api, "imports") == []
+    assert api.store.scalar("SELECT COUNT(*) FROM flag_feedback") == 1   # reviews kept by default
+    call(api, "reset", include_feedback=True)
+    assert api.store.scalar("SELECT COUNT(*) FROM flag_feedback") == 0
+
+
+def test_invoices_from_before_import_tracking_form_one_removable_group(tmp_path):
+    api = Api(tmp_path)
+    api.call("load_demo")
+    with api.store.connect() as con:
+        con.execute("UPDATE raw_invoices SET import_id = NULL")
+        con.execute("DELETE FROM imports")
+    hist = call(api, "imports")
+    assert len(hist) == 1 and hist[0]["import_id"] is None and hist[0]["invoices_kept"] == 964
+    assert call(api, "delete_import")["removed"] == 964
+
+
 def test_report_returns_bytes(api):
     assert api.call("report", json.dumps({"kind": "pdf", "lang": "ro"}))[:5] == b"%PDF-"
 

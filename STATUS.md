@@ -232,6 +232,12 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
   - Browser tests compare every KPI and caption with the native engine and the Python formatting.
   - Model test: Ollama is not installed on the PC, so the test could not run. It now stops with the reason when
     the model cannot be reached, and the web Settings screen disables it while Ollama is off.
+- **9 Oct 2026:** Test pack for trying the web app as an accounting firm (`scripts/make_test_pack.py` →
+  `~/efactura-test-pack`, with `TEST_PLAN.md` and expected numbers; all steps checked in Edge, including 8,217
+  invoices imported and audited in 44 s). Fixed: a corrupt ZIP in an upload stopped the whole import. New on the
+  Import screen: import history with Remove, "keep only this company" when buyers are mixed, and "start fresh"
+  (reviews kept unless asked). Every import now gets an id (`imports` table, `raw_invoices.import_id`); older
+  workspaces show their invoices as one "earlier imports" row.
 
 ## For Claude at the start of a session
 

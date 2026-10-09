@@ -273,6 +273,12 @@ Clear site data. The demo stays on 5180.
    - Overview: {k6}
    - Data → Teste date: {tests6}. This is what an accountant sees when two clients' invoices end up in one
      workspace; use one address (port) per client instead.
+9. **Undo the mix:** Import → "Companii în acest spațiu de lucru" → **Păstrează doar aceasta** next to {FIRM_A}
+   (or, under "Importuri", **Șterge** on the `03_client_B_other_company.zip` row).
+   - Overview is back to step 5: {k5}
+10. **Start fresh:** Import → "Începeți de la zero" → **Șterge toate datele**. Leave "also delete the reviews"
+    unticked, import `01` and `02` again: the flags you confirmed or dismissed in step 6 come back with their
+    status.
 
 ## Stress test (client C)
 

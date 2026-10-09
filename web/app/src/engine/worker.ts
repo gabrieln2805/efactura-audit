@@ -11,8 +11,9 @@ const DATA_DIR = "/data";
 const LOCK = "efactura-audit-db";
 // methods that write to the database: the file is flushed to OPFS after each
 // methods that run the audit need scikit-learn, which loads in the background after start-up
-const NEEDS_AUDIT = new Set(["load_demo", "import_files", "run_audit", "model_test"]);
-const WRITES = new Set(["load_demo", "import_files", "run_audit", "set_feedback", "reset", "rerun_tests", "model_test"]);
+const NEEDS_AUDIT = new Set(["load_demo", "import_files", "run_audit", "model_test", "delete_import", "keep_buyer"]);
+const WRITES = new Set(["load_demo", "import_files", "run_audit", "set_feedback", "reset", "rerun_tests", "model_test",
+                        "delete_import", "keep_buyer"]);
 
 type Manifest = { wheel: string; version: string; hash: string; packages: string[]; audit_packages: string[];
                   report_packages: { pyodide: string[]; pypi: string[] } };

@@ -1,6 +1,7 @@
 """Import RO e-Factura XML (bare or in ANAF ZIPs) into the local store."""
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,7 @@ class ImportResult:
     other_buyer: int = 0      # issued to a different company than the audited one
     failed: int = 0
     errors: list[str] = field(default_factory=list)
+    import_id: str = ""
 
     def summary(self) -> str:
         return (f"{self.imported} imported, {self.duplicates} already stored, {self.skipped} not invoices, "
@@ -29,8 +31,10 @@ class ImportResult:
 
 
 def import_sources(store: Store, sources: Iterable[XmlSource], buyer_cui: str = "",
-                   progress: Callable[[int], None] | None = None) -> ImportResult:
-    res = ImportResult()
+                   progress: Callable[[int], None] | None = None, label: str = "") -> ImportResult:
+    """Import invoices as one tracked import (``label``: the files it came from), so it can be removed later."""
+    started = datetime.now()
+    res = ImportResult(import_id=f"imp-{started:%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}")
     buyer = clean_cui(buyer_cui)
     heads: list[list] = []
     lines: list[list] = []
@@ -70,7 +74,7 @@ def import_sources(store: Store, sources: Iterable[XmlSource], buyer_cui: str = 
                 continue
             keys.add(inv.invoice_key)
             shas.add(inv.xml_sha256)
-            h, ls, vs = store.invoice_rows(inv, src.name, src.anaf_id)
+            h, ls, vs = store.invoice_rows(inv, src.name, src.anaf_id, res.import_id)
             heads.append(h)
             lines.extend(ls)
             vat.extend(vs)
@@ -78,10 +82,13 @@ def import_sources(store: Store, sources: Iterable[XmlSource], buyer_cui: str = 
         log("import", "summary", res.summary())
         con.execute("BEGIN")
         store.bulk_insert(con, heads, lines, vat, logs)
+        store.record_import(con, [res.import_id, started, label, buyer, res.imported, res.duplicates, res.skipped,
+                                  res.other_buyer, res.failed])
         con.execute("COMMIT")
     return res
 
 
 def import_paths(store: Store, paths: list[str | Path], buyer_cui: str = "",
                  progress: Callable[[int], None] | None = None) -> ImportResult:
-    return import_sources(store, iter_sources(paths), buyer_cui, progress)
+    return import_sources(store, iter_sources(paths), buyer_cui, progress,
+                          label=", ".join(Path(p).name for p in paths))

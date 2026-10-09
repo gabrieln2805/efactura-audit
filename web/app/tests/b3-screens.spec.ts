@@ -22,6 +22,8 @@ test("import: an upload with two buyers imports and its data tests warn", async 
   await page.getByRole("button", { name: "Importă", exact: true }).click();
   await expect(page.getByTestId("import-result")).toContainText("4 imported", { timeout: 120_000 });
   await expect(page.getByText("assert_single_buyer")).toBeVisible();
+  await expect(page.getByTestId("imports")).toContainText("broken_upload.zip");
+  await page.getByRole("button", { name: "Jurnal import" }).click();
   await expect(page.getByTestId("import-log")).toContainText("4 imported");
 
   await page.goto("/#/data");
@@ -29,6 +31,36 @@ test("import: an upload with two buyers imports and its data tests warn", async 
   await expect(page.getByTestId("tests-summary")).toContainText("1 avertismente");
   await page.getByTestId("failing-test").getByRole("button").first().click();
   await expect(page.getByTestId("failing-test").locator("tbody tr")).toHaveCount(2);
+});
+
+test("import: keep one company, remove an import, start fresh", async () => {
+  await page.goto("/#/import");
+  const buyers = page.getByTestId("buyers");
+  await expect(buyers.locator("tbody tr")).toHaveCount(2);
+  await buyers.locator("tr", { hasText: "Client SRL" }).filter({ hasNotText: "Alt" }).getByRole("button", { name: "Păstrează doar aceasta" }).click();
+  await page.getByTestId("confirm-ok").click();
+  await expect(page.getByText("Au rămas doar facturile pentru Client SRL.")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId("buyers")).toHaveCount(0);
+  await expect(page.getByTestId("imports").locator("tbody tr").first()).toContainText("3");   // invoices kept
+
+  await page.getByTestId("imports").getByRole("button", { name: /Șterge/ }).first().click();
+  await expect(page.getByRole("dialog")).toContainText("Ștergeți acest import?");
+  await page.getByRole("button", { name: "Renunță" }).click();   // cancel keeps everything
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await page.getByTestId("imports").getByRole("button", { name: /Șterge/ }).first().click();
+  await page.getByTestId("confirm-ok").click();
+  await expect(page.getByText("Import șters: 3 facturi.")).toBeVisible({ timeout: 120_000 });
+
+  // start fresh: the import history goes too
+  await page.getByTestId("file-input").setInputFiles(BROKEN);
+  await page.getByRole("button", { name: "Importă", exact: true }).click();
+  await expect(page.getByTestId("import-result")).toContainText("4 imported", { timeout: 120_000 });
+  await page.getByTestId("reset").click();
+  await page.getByTestId("confirm-ok").click();
+  await expect(page.getByText("Toate datele au fost șterse.")).toBeVisible();
+  await expect(page.getByTestId("imports")).toHaveCount(0);
+  await page.goto("/#/overview");
+  await expect(page.getByRole("button", { name: "Încarcă date demo (sintetice)" })).toBeVisible();
 });
 
 test("data: lineage, table browser, charts and SQL on the demo", async () => {

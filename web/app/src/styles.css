@@ -430,6 +430,23 @@ a { color: var(--accent); }
 .chat-input .input { flex: 1; height: 40px; }
 .chat-input .btn { height: 40px; }
 
+/* ------------------------------------------------------------------ destructive actions */
+.btn.sm { height: 30px; padding: 0 10px; font-size: 12.5px; gap: 6px; }
+.btn.danger { background: var(--sev-high); border-color: var(--sev-high); color: #fff; }
+.btn.danger:hover:not(:disabled) { background: #b42f2f; border-color: #b42f2f; }
+.danger-zone { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; border-color: rgba(208, 59, 59, 0.35); }
+.confirm {
+  border: 1px solid var(--border); border-radius: 12px; padding: 22px 24px; max-width: 460px; width: calc(100% - 32px);
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow-pop);
+}
+.confirm::backdrop { background: rgba(10, 12, 16, 0.45); }
+.confirm h2 { margin: 0 0 8px; font-size: 17px; }
+.confirm-body { color: var(--text-2); font-size: 13.5px; line-height: 1.5; }
+.confirm-body p { margin: 0 0 10px; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.check { display: flex; gap: 9px; align-items: flex-start; cursor: pointer; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+
 /* ------------------------------------------------------------------ footer and landing */
 .app-foot { margin-top: auto; padding: 14px 32px 22px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
 

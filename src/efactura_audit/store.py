@@ -57,7 +57,21 @@ SCHEMA = [
         note VARCHAR,
         source_file VARCHAR,
         xml_sha256 VARCHAR,
-        imported_at TIMESTAMP
+        imported_at TIMESTAMP,
+        import_id VARCHAR
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS imports (
+        import_id VARCHAR PRIMARY KEY,
+        imported_at TIMESTAMP,
+        sources VARCHAR,
+        buyer_filter VARCHAR,
+        imported INTEGER,
+        duplicates INTEGER,
+        skipped INTEGER,
+        other_buyer INTEGER,
+        failed INTEGER
     )
     """,
     """
@@ -167,7 +181,7 @@ SCHEMA = [
 ]
 
 RESET_TABLES = ("raw_invoices", "raw_invoice_lines", "raw_vat_breakdown", "item_groups", "flags", "runs", "import_log",
-                "invoice_scores", "data_test_results")
+                "invoice_scores", "data_test_results", "imports")
 
 
 def _migrate_legacy(con) -> None:
@@ -217,6 +231,8 @@ class Store:
             _migrate_legacy(con)
             for stmt in SCHEMA:
                 con.execute(stmt)
+            # workspaces from before import tracking: their invoices get no import id ("earlier imports")
+            con.execute("ALTER TABLE raw_invoices ADD COLUMN IF NOT EXISTS import_id VARCHAR")
             project().build(con)
 
     # ------------------------------------------------------------------ models ("dbt build")
@@ -242,7 +258,7 @@ class Store:
         "invoice_key", "anaf_id", "number", "type_code", "is_credit_note", "issue_date", "due_date", "currency",
         "supplier_cui", "supplier_vat_id", "supplier_name", "supplier_reg_no", "supplier_iban", "supplier_city",
         "buyer_cui", "buyer_name", "line_total", "tax_exclusive", "tax_total", "tax_inclusive", "payable",
-        "fx_to_ron", "amount_ron", "note", "source_file", "xml_sha256", "imported_at",
+        "fx_to_ron", "amount_ron", "note", "source_file", "xml_sha256", "imported_at", "import_id",
     ]
     LINE_COLS = [
         "invoice_key", "line_no", "item_name", "item_norm", "seller_item_id", "quantity", "unit_code", "unit_price",
@@ -255,7 +271,7 @@ class Store:
         return {r[0] for r in rows}, {r[1] for r in rows}
 
     @staticmethod
-    def invoice_rows(inv: "ParsedInvoice", source: str, anaf_id: str) -> tuple[list, list[list], list[list]]:
+    def invoice_rows(inv: "ParsedInvoice", source: str, anaf_id: str, import_id: str = "") -> tuple[list, list[list], list[list]]:
         fx = inv.fx_to_ron
         amount_ron = inv.payable_ron if fx is not None else (inv.payable if inv.currency == "RON" else None)
         head = [
@@ -263,7 +279,7 @@ class Store:
             inv.due_date, inv.currency, inv.supplier_cui, inv.supplier_vat_id, inv.supplier_name,
             inv.supplier_reg_no, inv.supplier_iban, inv.supplier_city, inv.buyer_cui, inv.buyer_name,
             inv.line_total, inv.tax_exclusive, inv.tax_total, inv.tax_inclusive, inv.payable, fx,
-            amount_ron, inv.note, source, inv.xml_sha256, datetime.now(),
+            amount_ron, inv.note, source, inv.xml_sha256, datetime.now(), import_id or None,
         ]
         lines = [
             [
@@ -382,8 +398,58 @@ class Store:
                FROM flag_feedback GROUP BY 1, 2 ORDER BY 1, 2"""
         )
 
-    def reset(self) -> None:
-        """Remove all invoices and flags (feedback is kept)."""
+    def reset(self, include_feedback: bool = False) -> None:
+        """Remove all invoices, flags and import history. Review feedback is kept unless asked: flag IDs are
+        stable, so kept reviews apply again when the same invoices are imported."""
         with self.connect() as con:
-            for t in RESET_TABLES:
+            for t in RESET_TABLES + (("flag_feedback",) if include_feedback else ()):
                 con.execute(f"DELETE FROM {t}")
+
+    # ------------------------------------------------------------------ import history
+    def record_import(self, con, row: list) -> None:
+        con.execute("INSERT INTO imports VALUES (?,?,?,?,?,?,?,?,?)", row)
+
+    def imports(self) -> pd.DataFrame:
+        """One row per import, newest first, with the invoices it still holds. Invoices imported before
+        imports were tracked form one row with an empty import_id."""
+        return self.df("""
+            WITH kept AS (SELECT import_id, COUNT(*) AS invoices FROM raw_invoices GROUP BY 1)
+            SELECT i.import_id, i.imported_at, i.sources, i.buyer_filter, i.imported, i.duplicates, i.skipped,
+                   i.other_buyer, i.failed, COALESCE(k.invoices, 0) AS invoices_kept
+            FROM imports i LEFT JOIN kept k USING (import_id)
+            UNION ALL
+            SELECT NULL, MIN(imported_at), NULL, NULL, COUNT(*), NULL, NULL, NULL, NULL, COUNT(*)
+            FROM raw_invoices WHERE import_id IS NULL HAVING COUNT(*) > 0
+            ORDER BY imported_at DESC""")
+
+    def _delete_invoices(self, con, where: str, params: list) -> int:
+        keys = f"SELECT invoice_key FROM raw_invoices WHERE {where}"
+        n = con.execute(f"SELECT COUNT(*) FROM raw_invoices WHERE {where}", params).fetchone()[0]
+        con.execute(f"DELETE FROM raw_invoice_lines WHERE invoice_key IN ({keys})", params)
+        con.execute(f"DELETE FROM raw_vat_breakdown WHERE invoice_key IN ({keys})", params)
+        con.execute(f"DELETE FROM raw_invoices WHERE {where}", params)
+        return int(n)
+
+    def delete_import(self, import_id: str | None) -> int:
+        """Remove one import's invoices (None: the untracked earlier imports). Run the audit afterwards."""
+        with self.connect() as con:
+            con.execute("BEGIN")
+            if import_id:
+                n = self._delete_invoices(con, "import_id = ?", [import_id])
+                con.execute("DELETE FROM imports WHERE import_id = ?", [import_id])
+            else:
+                n = self._delete_invoices(con, "import_id IS NULL", [])
+            con.execute("COMMIT")
+        return n
+
+    def buyers(self) -> pd.DataFrame:
+        return self.df("""SELECT buyer_cui, ANY_VALUE(buyer_name) AS buyer_name, COUNT(*) AS invoices
+                          FROM raw_invoices GROUP BY 1 ORDER BY invoices DESC""")
+
+    def keep_buyer(self, buyer_cui: str) -> int:
+        """Delete every invoice addressed to another buyer. Run the audit afterwards."""
+        with self.connect() as con:
+            con.execute("BEGIN")
+            n = self._delete_invoices(con, "buyer_cui IS DISTINCT FROM ?", [buyer_cui])
+            con.execute("COMMIT")
+        return n

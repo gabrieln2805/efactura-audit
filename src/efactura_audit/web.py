@@ -137,15 +137,36 @@ class Api:
             for p in paths:
                 path = Path(p)
                 yield from iter_uploaded(path.name, path.read_bytes())
-        imp = import_sources(self.store, sources(), buyer_cui)
+        # the worker stores uploads as "<n>-<original name>"; the import history shows the original names
+        label = ", ".join(re.sub(r"^\d+-", "", Path(p).name) for p in paths)
+        imp = import_sources(self.store, sources(), buyer_cui, label=label)
         res = run_audit(self.store, self.ws.settings)
-        return {"summary": imp.summary(), "imported": imp.imported, "duplicates": imp.duplicates,
+        return {"summary": imp.summary(), "import_id": imp.import_id, "imported": imp.imported, "duplicates": imp.duplicates,
                 "skipped": imp.skipped, "other_buyer": imp.other_buyer, "failed": imp.failed,
                 "errors": imp.errors[:10], "flags": len(res.flags)}
 
-    def reset(self) -> dict:
-        self.store.reset()
+    def reset(self, include_feedback: bool = False) -> dict:
+        """Start fresh: delete all invoices, flags and import history (and the reviews, if asked)."""
+        self.store.reset(include_feedback=include_feedback)
         return {"invoices": 0}
+
+    def imports(self) -> list[dict]:
+        return records(self.store.imports())
+
+    def delete_import(self, import_id: str | None = None) -> dict:
+        """Remove one import's invoices (None: invoices imported before imports were tracked), then re-audit."""
+        removed = self.store.delete_import(import_id)
+        res = run_audit(self.store, self.ws.settings)
+        return {"removed": removed, "flags": len(res.flags)}
+
+    def buyers(self) -> list[dict]:
+        return records(self.store.buyers())
+
+    def keep_buyer(self, buyer_cui: str | None) -> dict:
+        """Keep only the invoices addressed to one company, then re-audit."""
+        removed = self.store.keep_buyer(buyer_cui)
+        res = run_audit(self.store, self.ws.settings)
+        return {"removed": removed, "flags": len(res.flags)}
 
     # ------------------------------------------------------------------ overview
     def overview(self, lang: str = "ro") -> dict:
