@@ -63,6 +63,13 @@ export function assistantProxy(): Plugin {
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(120_000),
         });
+        if (up.status === 401 || up.status === 403) {
+          // the upstream's message quotes part of the server's key: the page must not see it
+          await up.body?.cancel();
+          return send(res, up.status, { error: { message:
+            `The model provider rejected the assistant server's API key (HTTP ${up.status}). ` +
+            "Set a valid ASSISTANT_API_KEY (or MISTRAL_API_KEY / OPENAI_API_KEY) on the server and restart it." } });
+        }
         res.statusCode = up.status;
         res.setHeader("content-type", up.headers.get("content-type") ?? "application/json");
         res.setHeader("cache-control", "no-store");
