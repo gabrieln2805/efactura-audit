@@ -132,10 +132,17 @@ def test_report_returns_bytes(api):
 
 def test_assistant_methods(api, monkeypatch, tmp_path):
     monkeypatch.setenv("EFACTURA_MODELS", str(tmp_path / "models.json"))
-    opts = call(api, "assistant_options", provider="openai", cloud_enabled=True, allow_untested=True)
+    opts = call(api, "assistant_options", provider="openai", cloud_enabled=True, allow_untested=True, dev_mode=True)
     assert opts["providers"][0] == "ollama" and "openai" in opts["providers"]
     assert opts["models"] and not any(m["approved"] for m in opts["models"])
-    assert call(api, "assistant_options")["providers"] == ["ollama"]
+    # a regular user sees only the site's assistant, and only once its model passed the Romanian test
+    assert call(api, "assistant_options")["providers"] == []
+    hosted = call(api, "assistant_options", hosted_model="gpt-x")
+    assert hosted["providers"] == ["auditefactura"] and hosted["models"] == [] and hosted["hosted_untested"]
+    ok = call(api, "assistant_options", hosted_model="gpt-x", hosted_approved=True)
+    assert ok["models"] == [{"model": "gpt-x", "approved": True}]
+    no_site = json.loads(api.call("ask", json.dumps({"provider": "auditefactura", "model": "gpt-x", "question": "?"})))
+    assert not no_site["ok"] and "/api/assistant" in no_site["error"]
     assert call(api, "tested_models") == []
     no_key = json.loads(api.call("ask", json.dumps({"provider": "openai", "model": "x", "question": "?"})))
     assert not no_key["ok"] and "API key" in no_key["error"]

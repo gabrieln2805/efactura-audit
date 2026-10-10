@@ -74,6 +74,7 @@ cd web/app && npm run dev          # web app, http://127.0.0.1:5180  (then "Înc
 | Workspace path in the sidebar | "Stored only in this browser" | The data lives in the browser's private storage |
 | Tables show raw column names | Translated column labels | Presentation only |
 | Import: only adds data (reset via CLI) | Import history with Remove per import, "keep only this company" for mixed buyers, "start fresh" with or without reviews | Asked for on 9 Oct 2026 |
+| Assistant: choose provider and model; Ollama by default | The site's own assistant, no pickers; Ollama, own keys and the model test under Settings → Developer options | Users should not need Ollama or keys (10 Oct 2026) |
 | Ollama works out of the box | Ollama must allow the site's origin (`OLLAMA_ORIGINS`) | Browser security; noted in Settings |
 
 Signed off by: ____________  Date: ________

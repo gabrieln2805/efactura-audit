@@ -158,6 +158,7 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
 | Demand for a self-serve web tool | High | The demand test in phase C |
 | Safari on a real device untested | High | Playwright's WebKit on Windows has no OPFS, so only the "data not kept" warning was checked there. Safari without `createWritable` uses the snapshot fallback (tested in Chromium with `?storage=snapshot`) |
 | Pyodide loads from the jsDelivr CDN | Medium (phase C) | Serve it from our own domain, with a strict content security policy |
+| Hosted assistant server for production | High (phase C) | Same contract as `web/app/dev/assistantProxy.ts`, deployed with login, per-account quotas and an EU-hosted model with a data processing agreement; ship it with `approved: true` only after the Romanian test passes |
 | Local Ollama from the website | Medium | Needs `OLLAMA_ORIGINS` set to the site's address; Chrome may also need Private Network Access headers. The web assistant has no MCP option (no subprocess in a browser) |
 | Real-data validation | High | First real archives come from early web users or friendly companies |
 | Browser: first visit about 15 s and 50 MB | Medium | Report packages load only when a report is built, scikit-learn after start-up. Still to do: ship the DejaVu font instead of matplotlib (−7 MB), Service Worker cache |
@@ -238,6 +239,11 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
   Import screen: import history with Remove, "keep only this company" when buyers are mixed, and "start fresh"
   (reviews kept unless asked). Every import now gets an id (`imports` table, `raw_invoices.import_id`); older
   workspaces show their invoices as one "earlier imports" row.
+- **10 Oct 2026:** The web assistant uses the site's own AI endpoint (`/api/assistant`, OpenAI wire format): the
+  engine's new `auditefactura` provider sends no key; the local dev server forwards to OpenAI or Mistral with the
+  key from the environment. Users see no provider or model pickers; a model that has not passed the Romanian test
+  shows "run the test now" instead of a blank list. Ollama, own keys, untested models and the model test moved
+  to Settings → Developer options. The model test also stops at once when the key or model is rejected.
 
 ## For Claude at the start of a session
 

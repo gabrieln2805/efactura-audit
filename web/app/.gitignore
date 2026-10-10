@@ -7,3 +7,6 @@ public/py/
 src/i18n/strings.json
 tests/fixtures/
 tsconfig.tsbuildinfo
+# server-side secrets for the local assistant proxy (dev/assistantProxy.ts)
+.env.local
+.env.*.local

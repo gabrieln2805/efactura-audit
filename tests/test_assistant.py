@@ -128,6 +128,16 @@ def test_openai_style_adapters(monkeypatch, cls, url):
     assert turn.text == "Gata" and not turn.tool_calls
 
 
+def test_hosted_adapter_sends_no_key_and_is_redacted(monkeypatch):
+    from efactura_audit.assistant.providers import HostedProvider
+    seen = _capture(monkeypatch, {"choices": [{"message": {"content": "Gata", "tool_calls": None}}]})
+    prov = make_provider("auditefactura", "gpt-x", base_url="https://auditefactura.example/api/assistant")
+    assert isinstance(prov, HostedProvider) and prov.is_cloud
+    prov.chat("sys", HISTORY, TOOLS)
+    assert seen["url"] == "https://auditefactura.example/api/assistant/chat/completions"
+    assert "Authorization" not in seen["headers"]
+
+
 def test_anthropic_adapter(monkeypatch):
     seen = _capture(monkeypatch, {"content": [{"type": "text", "text": "Uite"},
                                               {"type": "tool_use", "id": "t9", "name": "get_flag", "input": {"flag_id": "X"}}]})
@@ -196,3 +206,13 @@ def test_model_test_stops_when_the_model_is_unreachable(tmp_path):
 
     with pytest.raises(ValueError, match="Nothing was tested: ollama: cannot reach"):
         run_model_test(ScriptedProvider(offline), tmp_path)
+
+
+def test_model_test_stops_when_the_key_or_model_is_rejected(tmp_path):
+    from efactura_audit.assistant.providers import ProviderError, ScriptedProvider
+
+    def rejected(messages):
+        raise ProviderError("auditefactura: HTTP 404 — The model `gpt-old` does not exist")
+
+    with pytest.raises(ValueError, match="HTTP 404"):
+        run_model_test(ScriptedProvider(rejected), tmp_path)

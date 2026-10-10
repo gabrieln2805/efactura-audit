@@ -236,8 +236,8 @@ def run_model_test(provider: Provider, work_dir: Path | None = None,
             progress(f"{task['id']}: {question}")
         ans = Assistant(provider, backend, overview).ask(question)
         called = [t.name for t in ans.trace]
-        if ans.error and not results and "cannot reach" in ans.error:
-            # the model is not there at all (e.g. Ollama not installed or not running): scoring 14 identical
+        if ans.error and not results and re.search(r"cannot reach|HTTP 4\d\d", ans.error):
+            # the model is not there at all (Ollama not running, key rejected, unknown model): scoring 14 identical
             # failures says nothing, so stop with the reason
             if tmp:
                 tmp.cleanup()

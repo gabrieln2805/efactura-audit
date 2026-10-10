@@ -251,6 +251,21 @@ wheel into `public/py/`, exports the UI strings from `app/i18n.py` (one RO/EN so
 writes the native engine's demo results that the browser tests compare against. The browser calls the engine
 through `efactura_audit/web.py` (one JSON method per screen, the same queries as the Streamlit app).
 
+**AI assistant in the web app.** Users get the site's own assistant: the agent loop and the tools run in the
+browser, and only the model call goes to the site's `/api/assistant` endpoint, which adds the key and picks the
+model, so no key reaches the page. Tool results are redacted as for any cloud model (IBANs masked, sole traders
+pseudonymised). Locally, `npm run dev` serves that endpoint (`dev/assistantProxy.ts`) with the key from the
+environment or `web/app/.env.local` (git-ignored):
+
+```
+ASSISTANT_API_KEY=...            # or MISTRAL_API_KEY / OPENAI_API_KEY
+ASSISTANT_API_URL=...            # optional, any OpenAI-compatible API (default: Mistral or OpenAI, by the key)
+ASSISTANT_MODEL=...              # optional (default: mistral-small-latest / gpt-4.1-mini)
+```
+
+The assistant is offered once its model passes the Romanian test (the button on the Assistant screen, or
+Settings → Developer options). Ollama, cloud models with your own key and untested models are developer options.
+
 ## Known limits and next steps
 
 - **Validate on real invoices.** Everything here is tested on synthetic data. The first pilot should run on a

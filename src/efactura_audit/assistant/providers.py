@@ -25,6 +25,8 @@ except ImportError:   # the browser build (Pyodide) has no httpx: requests go th
 IN_BROWSER = sys.platform == "emscripten"
 
 CLOUD_PROVIDERS = {"anthropic", "openai", "mistral"}
+# the site's own assistant: our server holds the model key and picks the model (web app, /api/assistant)
+HOSTED = "auditefactura"
 
 # Suggestions only: model names change often, so confirm current IDs in each provider's docs.
 SUGGESTED_MODELS = {
@@ -172,7 +174,7 @@ class OpenAICompatibleProvider(Provider):
                 msgs.append({"role": m["role"], "content": m["content"]})
         data = self._post(f"{(self.base_url or self.default_url).rstrip('/')}/chat/completions", {
             "model": self.model, "messages": msgs, "tools": _openai_tools(tools), "temperature": 0,
-        }, {"Authorization": f"Bearer {self.api_key}"})
+        }, self._headers())
         msg = data["choices"][0]["message"]
         calls = []
         for c in msg.get("tool_calls") or []:
@@ -183,6 +185,21 @@ class OpenAICompatibleProvider(Provider):
                 args = {}
             calls.append({"id": c.get("id") or uuid.uuid4().hex[:9], "name": c["function"]["name"], "arguments": args})
         return Turn(text=msg.get("content") or "", tool_calls=calls, raw=data)
+
+
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.api_key}"}
+
+
+class HostedProvider(OpenAICompatibleProvider):
+    """The site's assistant endpoint (OpenAI wire format). The server adds the key and chooses the model,
+    so the browser holds no key. Data leaves the browser, so tool results are redacted as for any cloud model."""
+    name = HOSTED
+    is_cloud = True
+    default_url = ""
+
+    def _headers(self) -> dict:
+        return {}
 
 
 class MistralProvider(OpenAICompatibleProvider):
@@ -235,7 +252,7 @@ class ScriptedProvider(Provider):
 
 
 PROVIDERS = {"ollama": OllamaProvider, "openai": OpenAICompatibleProvider, "mistral": MistralProvider,
-             "anthropic": AnthropicProvider}
+             "anthropic": AnthropicProvider, HOSTED: HostedProvider}
 
 
 def make_provider(provider: str, model: str, api_key: str = "", base_url: str = "") -> Provider:
@@ -243,6 +260,8 @@ def make_provider(provider: str, model: str, api_key: str = "", base_url: str = 
         raise ValueError(f"Unknown provider {provider!r}; choose one of {', '.join(PROVIDERS)}")
     if provider in CLOUD_PROVIDERS and not api_key:
         raise ValueError(f"{provider} needs the client's own API key")
+    if provider == HOSTED and not base_url:
+        raise ValueError("the hosted assistant needs the site's /api/assistant address")
     return PROVIDERS[provider](model=model, api_key=api_key, base_url=base_url)
 
 

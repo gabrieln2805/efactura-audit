@@ -83,6 +83,7 @@ class Api:
         if sys.platform == "emscripten":   # in the browser the tested-model list lives with the data (OPFS)
             os.environ.setdefault("EFACTURA_MODELS", str(self.root / "approved_models.json"))
         self._progress: Callable[[str], None] | None = None   # set by the web worker for long calls
+        self.hosted_url = ""   # the site's /api/assistant address, set by the web worker
         self.ws = load_workspace(self.root)
         self.store = Store(self.ws.db_path)
 
@@ -392,19 +393,31 @@ class Api:
     def _ollama_url(self) -> str:
         return self._assistant_cfg().get("ollama_url", "http://localhost:11434")
 
-    def assistant_options(self, provider: str = "ollama", cloud_enabled: bool = False,
-                          allow_untested: bool = False) -> dict:
-        """Providers on offer and the models for one of them: Romanian-tested first, then untested when allowed."""
+    def assistant_options(self, provider: str | None = None, cloud_enabled: bool = False, allow_untested: bool = False,
+                          dev_mode: bool = False, hosted_model: str | None = None, hosted_approved: bool = False) -> dict:
+        """Providers on offer and the models of the chosen one (Romanian-tested first, untested only when allowed).
+
+        Users see only the site's own assistant (``hosted_model``, reported by /api/assistant/info). Ollama and
+        cloud models with the user's own key are developer options."""
         from .assistant.evaluation import approved_models
-        from .assistant.providers import CLOUD_PROVIDERS, SUGGESTED_MODELS, ollama_models
-        providers = ["ollama"] + (sorted(CLOUD_PROVIDERS) if cloud_enabled else [])
+        from .assistant.providers import CLOUD_PROVIDERS, HOSTED, SUGGESTED_MODELS, ollama_models
+        providers = ([HOSTED] if hosted_model else []) + (
+            ["ollama"] + (sorted(CLOUD_PROVIDERS) if cloud_enabled else []) if dev_mode else [])
+        if provider not in providers:
+            provider = providers[0] if providers else None
+        untested = allow_untested and dev_mode
         approved = [m["model"] for m in approved_models(self.ws) if m["provider"] == provider]
-        options = list(approved)
-        if allow_untested:
-            extra = ollama_models(self._ollama_url()) if provider == "ollama" else []
-            options += [m for m in extra + SUGGESTED_MODELS.get(provider, []) if m not in options]
-        return {"providers": providers, "cloud": sorted(CLOUD_PROVIDERS),
-                "models": [{"model": m, "approved": m in approved} for m in options]}
+        if provider == HOSTED:
+            ok = hosted_approved or hosted_model in approved
+            models = [{"model": hosted_model, "approved": ok}] if ok or untested else []
+        else:
+            options = list(approved)
+            if untested and provider:
+                extra = ollama_models(self._ollama_url()) if provider == "ollama" else []
+                options += [m for m in extra + SUGGESTED_MODELS.get(provider, []) if m not in options]
+            models = [{"model": m, "approved": m in approved} for m in options]
+        return {"providers": providers, "provider": provider, "cloud": sorted(CLOUD_PROVIDERS), "models": models,
+                "hosted_untested": provider == HOSTED and not models}
 
     def ask(self, provider: str, model: str, question: str, history: list[dict] | None = None,
             api_key: str = "", lang: str = "ro") -> dict:
@@ -414,11 +427,15 @@ class Api:
         from .assistant.providers import make_provider
         from .assistant.tools import AuditTools
         tools = AuditTools(self.store, lang)
-        prov = make_provider(provider, model, api_key, self._ollama_url() if provider == "ollama" else "")
+        prov = make_provider(provider, model, api_key, self._base_url(provider))
         ans = Assistant(prov, LocalBackend(tools), tools.audit_overview(),
                         int(self._assistant_cfg().get("max_tool_rounds", 6))).ask(question, history or [])
         return {"text": ans.text, "error": ans.error,
                 "trace": [{"name": t.name, "arguments": t.arguments, "result": t.result} for t in ans.trace]}
+
+    def _base_url(self, provider: str) -> str:
+        from .assistant.providers import HOSTED
+        return self._ollama_url() if provider == "ollama" else self.hosted_url if provider == HOSTED else ""
 
     def ollama_status(self) -> dict:
         from .assistant.providers import ollama_models
@@ -433,7 +450,7 @@ class Api:
         """Run the Romanian task set on synthetic data; passing models are offered in the assistant."""
         from .assistant.evaluation import run_model_test, save_result
         from .assistant.providers import make_provider
-        prov = make_provider(provider, model, api_key, self._ollama_url() if provider == "ollama" else "")
+        prov = make_provider(provider, model, api_key, self._base_url(provider))
         with tempfile.TemporaryDirectory() as tmp:
             result = run_model_test(prov, Path(tmp), progress=self._progress)
         save_result(self.ws, result)

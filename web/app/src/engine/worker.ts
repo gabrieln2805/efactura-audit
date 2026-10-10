@@ -159,6 +159,7 @@ async function boot(base: string, storage: "auto" | "snapshot"): Promise<void> {
 from efactura_audit.web import Api
 api = Api("${DATA_DIR}")
 api._progress = _emit
+api.hosted_url = "${new URL("api/assistant", base).href}"
 api
 `);
   await flush();   // a first visit creates the database; a new version may have rebuilt the models

@@ -1,10 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { assistantProxy } from "./dev/assistantProxy";
 
 // relative base: the built site works from any folder (Cloudflare Pages root, a sub-path, or a local server)
 export default defineConfig({
   base: "./",
-  plugins: [react()],
+  plugins: [react(), assistantProxy()],
   worker: { format: "es" },
   // Plotly is one lazily loaded chunk (~480 kB gzipped), fetched with the first chart
   build: { chunkSizeWarningLimit: 1600 },

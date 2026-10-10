@@ -101,10 +101,9 @@ test("report: Excel and PDF are built in the browser", async () => {
   }
 });
 
-test("assistant: a cloud model answers through the audit tools (API mocked)", async () => {
-  const seen: string[] = [];
-  await page.context().route("https://api.openai.com/v1/chat/completions", async (route) => {
-    const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "POST, OPTIONS" };
+// a mocked model: first asks for audit_overview, then answers from its result
+function fakeModel(seen: (string | undefined)[], cors = {}) {
+  return async (route: import("@playwright/test").Route) => {
     if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
     const body = route.request().postDataJSON();
     seen.push(route.request().headers()["authorization"]);
@@ -113,20 +112,55 @@ test("assistant: a cloud model answers through the audit tools (API mocked)", as
       ? { role: "assistant", content: "Sunt **964** de facturi în perioada analizată." }
       : { role: "assistant", content: "", tool_calls: [{ id: "c1", type: "function", function: { name: "audit_overview", arguments: "{}" } }] };
     return route.fulfill({ status: 200, headers: cors, contentType: "application/json", body: JSON.stringify({ choices: [{ message }] }) });
-  });
+  };
+}
 
-  await page.goto("/#/settings");
-  await page.getByText("Permite modele cloud").click();
-  await page.getByText("Arată și modele netestate").click();
+async function hostedInfo(info: object) {
+  await page.context().unroute("**/api/assistant/info");
+  await page.context().route("**/api/assistant/info", (r) => r.fulfill({ json: info }));
   await page.goto("/#/assistant");
-  await page.getByTestId("provider").selectOption("openai");
-  await page.getByLabel("Cheie API proprie").fill("sk-test");
+  await page.reload();   // the app reads the assistant server's info once per visit
+  await expect(page.getByTestId("engine-chip")).toHaveAttribute("data-phase", "ready", { timeout: 200_000 });
+}
+
+test("assistant: users get the site's assistant, with no key in the browser (server mocked)", async () => {
+  const seen: (string | undefined)[] = [];
+  await page.context().route("**/api/assistant/chat/completions", fakeModel(seen));
+
+  await hostedInfo({ available: false });
+  await expect(page.getByTestId("ai-not-set-up")).toBeVisible();
+
+  await hostedInfo({ available: true, model: "gpt-test", upstream: "api.openai.com", approved: false });
+  await expect(page.getByTestId("hosted-untested")).toContainText("gpt-test");
+  await expect(page.getByRole("button", { name: "Rulează testul acum" })).toBeEnabled();
+
+  await hostedInfo({ available: true, model: "gpt-test", upstream: "api.openai.com", approved: true });
+  await expect(page.getByTestId("provider")).toHaveCount(0);   // no provider or model pickers for users
+  await expect(page.getByText("Fișierele facturilor nu se trimit")).toBeVisible();
   await page.getByTestId("chat-input").fill("Câte facturi sunt?");
   await page.getByTestId("chat-input").press("Enter");
   const log = page.getByTestId("chat-log");
   await expect(log.locator(".md strong")).toHaveText("964", { timeout: 60_000 });
   await log.getByRole("button", { name: /Surse: apeluri de instrumente \(1\)/ }).click();
   await expect(log).toContainText("audit_overview({})");
+  expect(seen).toEqual([undefined, undefined]);   // the browser never sends a key; the server adds it
+});
+
+test("assistant: developer options still allow a cloud model with your own key (API mocked)", async () => {
+  const seen: (string | undefined)[] = [];
+  const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "POST, OPTIONS" };
+  await page.context().route("https://api.openai.com/v1/chat/completions", fakeModel(seen, cors));
+  await page.goto("/#/settings");
+  await page.getByText("Opțiuni pentru dezvoltare").click();
+  await page.getByText("Permite modele cloud").click();
+  await page.getByText("Arată și modele netestate").click();
+  await page.goto("/#/assistant");
+  await page.getByTestId("provider").selectOption("openai");
+  await page.getByLabel("Cheie API proprie").fill("sk-test");
+  await page.getByRole("button", { name: "Conversație nouă" }).click();
+  await page.getByTestId("chat-input").fill("Câte facturi sunt?");
+  await page.getByTestId("chat-input").press("Enter");
+  await expect(page.getByTestId("chat-log").locator(".md strong")).toHaveText("964", { timeout: 60_000 });
   expect(seen).toEqual(["Bearer sk-test", "Bearer sk-test"]);
 });
 
@@ -134,6 +168,8 @@ test("settings: the Ollama model test is disabled, with the reason, when Ollama 
   const running = await page.evaluate(() => (window as any).__engine.call("ollama_status")) as { models: string[] };
   test.skip(running.models.length > 0, "Ollama is running on this machine");
   await page.goto("/#/settings");
+  await expect(page.getByTestId("ai-status")).toContainText("gpt-test");
+  await page.getByTestId("test-provider").selectOption("ollama");   // developer options are still on
   await expect(page.getByTestId("run-model-test")).toBeDisabled();
   await expect(page.getByText("Ollama nu rulează la http://localhost:11434")).toHaveCount(2);   // status line and the warning
 });
