@@ -138,10 +138,10 @@ def test_assistant_methods(api, monkeypatch, tmp_path):
     # a regular user sees only the site's assistant, and only once its model passed the Romanian test
     assert call(api, "assistant_options")["providers"] == []
     hosted = call(api, "assistant_options", hosted_model="gpt-x")
-    assert hosted["providers"] == ["auditefactura"] and hosted["models"] == [] and hosted["hosted_untested"]
+    assert hosted["providers"] == ["hosted"] and hosted["models"] == [] and hosted["hosted_untested"]
     ok = call(api, "assistant_options", hosted_model="gpt-x", hosted_approved=True)
     assert ok["models"] == [{"model": "gpt-x", "approved": True}]
-    no_site = json.loads(api.call("ask", json.dumps({"provider": "auditefactura", "model": "gpt-x", "question": "?"})))
+    no_site = json.loads(api.call("ask", json.dumps({"provider": "hosted", "model": "gpt-x", "question": "?"})))
     assert not no_site["ok"] and "/api/assistant" in no_site["error"]
     assert call(api, "tested_models") == []
     no_key = json.loads(api.call("ask", json.dumps({"provider": "openai", "model": "x", "question": "?"})))

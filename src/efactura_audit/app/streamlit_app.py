@@ -30,7 +30,7 @@ from efactura_audit.synthetic import write_dataset
 
 KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "mistral": "MISTRAL_API_KEY"}
 
-st.set_page_config(page_title="e-Factura audit", page_icon="🧾", layout="wide")
+st.set_page_config(page_title="Clarifact", page_icon="🧾", layout="wide")
 
 
 @st.cache_resource

@@ -32,7 +32,7 @@ export function Report() {
         </button>
         {file && (
           <button className="btn primary" data-testid={`download-${kind}`}
-                  onClick={() => download(file.bytes as BlobPart, `audit-efactura-${file.lang}.${kind}`, TYPES[kind])}>
+                  onClick={() => download(file.bytes as BlobPart, `clarifact-${file.lang}.${kind}`, TYPES[kind])}>
             <Download size={15} />{L("download")} .{kind}
           </button>
         )}

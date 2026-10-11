@@ -26,7 +26,7 @@ IN_BROWSER = sys.platform == "emscripten"
 
 CLOUD_PROVIDERS = {"anthropic", "openai", "mistral"}
 # the site's own assistant: our server holds the model key and picks the model (web app, /api/assistant)
-HOSTED = "auditefactura"
+HOSTED = "hosted"
 
 # Suggestions only: model names change often, so confirm current IDs in each provider's docs.
 SUGGESTED_MODELS = {

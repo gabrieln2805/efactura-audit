@@ -1,4 +1,7 @@
-# e-Factura Anomaly Audit
+# Clarifact (code name efactura-audit)
+
+The product is **Clarifact**, a website that checks supplier invoices from e-Factura in the user's browser. This
+repository keeps its code name: the Python package is `efactura_audit` and the CLI is `efactura-audit`.
 
 A locally run tool that audits a Romanian company's supplier e-invoices (RO e-Factura, UBL 2.1 / CIUS-RO).
 It finds near-duplicate invoices, supplier price increases, unusual amounts, odd VAT patterns and supplier

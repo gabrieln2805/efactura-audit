@@ -5,6 +5,7 @@ import { ArrowRight, Building2, Copy, Cpu, FileDown, HardDrive, KeyRound, Lock, 
 import { engine, useApp, type Theme } from "../state";
 import { CHECKS, fmtLei, pick, type Lang } from "../i18n";
 import { SevBadge } from "../components/ui";
+import { BRAND } from "../brand";
 
 const COPY = {
   ro: {
@@ -29,7 +30,7 @@ const COPY = {
     ],
     privacyTitle: "Facturile rămân la dumneavoastră",
     privacy: [
-      ["Procesare în browser", "Motorul de audit rulează pe calculatorul dumneavoastră (WebAssembly). Nu există server care să primească facturile."],
+      ["Procesare în browser", "Motorul de verificare rulează pe calculatorul dumneavoastră (WebAssembly). Nu există server care să primească facturile."],
       ["Stocare locală", "Datele sunt păstrate în spațiul privat al browserului și pot fi șterse oricând."],
       ["Asistent AI (în curând)", "Răspunsuri în limba română din datele dumneavoastră, cu un model AI open-source găzduit în UE. Fișierele facturilor nu îi sunt trimise."],
     ],
@@ -58,7 +59,7 @@ const COPY = {
     ],
     privacyTitle: "Your invoices stay with you",
     privacy: [
-      ["Processed in the browser", "The audit engine runs on your computer (WebAssembly). There is no server that receives invoices."],
+      ["Processed in the browser", "The checking engine runs on your computer (WebAssembly). There is no server that receives invoices."],
       ["Stored locally", "Data is kept in the browser's private storage and can be deleted at any time."],
       ["AI assistant (coming soon)", "Answers in Romanian from your data, with an open-source AI model hosted in the EU. Invoice files are not sent to it."],
     ],
@@ -86,7 +87,7 @@ export function Landing() {
     <div className="landing">
       <header className="landing-bar">
         <a className="brand" href="#/"><span className="brand-mark"><ReceiptText size={17} /></span>
-          <span className="brand-name">auditefactura<span>.ro</span></span></a>
+          <span className="brand-name">{BRAND}</span></a>
         <div className="landing-actions">
           <div className="seg" role="group" aria-label={L("language")}>
             {(["ro", "en"] as Lang[]).map((l) => (

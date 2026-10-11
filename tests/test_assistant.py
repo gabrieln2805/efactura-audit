@@ -131,10 +131,10 @@ def test_openai_style_adapters(monkeypatch, cls, url):
 def test_hosted_adapter_sends_no_key_and_is_redacted(monkeypatch):
     from efactura_audit.assistant.providers import HostedProvider
     seen = _capture(monkeypatch, {"choices": [{"message": {"content": "Gata", "tool_calls": None}}]})
-    prov = make_provider("auditefactura", "gpt-x", base_url="https://auditefactura.example/api/assistant")
+    prov = make_provider("hosted", "gpt-x", base_url="https://clarifact.example/api/assistant")
     assert isinstance(prov, HostedProvider) and prov.is_cloud
     prov.chat("sys", HISTORY, TOOLS)
-    assert seen["url"] == "https://auditefactura.example/api/assistant/chat/completions"
+    assert seen["url"] == "https://clarifact.example/api/assistant/chat/completions"
     assert "Authorization" not in seen["headers"]
 
 
@@ -212,7 +212,7 @@ def test_model_test_stops_when_the_key_or_model_is_rejected(tmp_path):
     from efactura_audit.assistant.providers import ProviderError, ScriptedProvider
 
     def rejected(messages):
-        raise ProviderError("auditefactura: HTTP 404 — The model `gpt-old` does not exist")
+        raise ProviderError("hosted: HTTP 404 — The model `gpt-old` does not exist")
 
     with pytest.raises(ValueError, match="HTTP 404"):
         run_model_test(ScriptedProvider(rejected), tmp_path)

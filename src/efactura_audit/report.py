@@ -19,7 +19,7 @@ SEVERITY_COLORS = {"high": "#d03b3b", "medium": "#ec835a", "low": "#fab219"}
 
 T = {
     "en": {
-        "title": "e-Factura anomaly audit",
+        "title": "Clarifact · Supplier invoice checks",
         "period": "Period", "invoices": "Invoices", "suppliers": "Suppliers", "spend": "Supplier spend (incl. VAT)",
         "flags": "Flags", "at_risk": "Amount to review", "by_check": "Flags by check", "by_sev": "Flags by severity",
         "top": "Flags to review, most important first", "generated": "Generated",
@@ -35,7 +35,7 @@ T = {
         "company": "Company", "more": "{n} more flags in the Excel report.",
     },
     "ro": {
-        "title": "Audit anomalii e-Factura",
+        "title": "Clarifact · Verificarea facturilor de la furnizori",
         "period": "Perioada", "invoices": "Facturi", "suppliers": "Furnizori", "spend": "Achiziții (cu TVA)",
         "flags": "Semnalări", "at_risk": "Sumă de verificat", "by_check": "Semnalări pe tip de verificare",
         "by_sev": "Semnalări pe grad de importanță", "top": "Semnalări de verificat, în ordinea importanței",
@@ -358,11 +358,11 @@ def write_reports(store: Store, out_dir: Path, lang: str = "ro", formats: tuple[
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     paths = []
     if "xlsx" in formats:
-        p = out_dir / f"audit-efactura-{stamp}-{lang}.xlsx"
+        p = out_dir / f"clarifact-{stamp}-{lang}.xlsx"
         p.write_bytes(excel_report(store, lang))
         paths.append(p)
     if "pdf" in formats:
-        p = out_dir / f"audit-efactura-{stamp}-{lang}.pdf"
+        p = out_dir / f"clarifact-{stamp}-{lang}.pdf"
         p.write_bytes(pdf_report(store, lang))
         paths.append(p)
     return paths

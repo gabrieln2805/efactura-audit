@@ -66,7 +66,7 @@ test("import: keep one company, remove an import, start fresh", async () => {
 test("data: lineage, table browser, charts and SQL on the demo", async () => {
   await page.goto("/#/import");
   await page.getByRole("button", { name: "Încarcă date demo (sintetice)" }).click();
-  await expect(page.getByText("Date demo încărcate și auditate.")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText("Date demo încărcate și verificate.")).toBeVisible({ timeout: 120_000 });
 
   await page.goto("/#/data");
   await expect(page.getByTestId("lineage").locator("svg")).toBeVisible({ timeout: 60_000 });
@@ -97,7 +97,7 @@ test("report: Excel and PDF are built in the browser", async () => {
     await page.getByTestId(`build-${kind}`).click();
     await expect(page.getByTestId(`download-${kind}`)).toBeVisible({ timeout: 180_000 });
     const [file] = await Promise.all([page.waitForEvent("download"), page.getByTestId(`download-${kind}`).click()]);
-    expect(file.suggestedFilename()).toBe(`audit-efactura-ro.${kind}`);
+    expect(file.suggestedFilename()).toBe(`clarifact-ro.${kind}`);
   }
 });
 

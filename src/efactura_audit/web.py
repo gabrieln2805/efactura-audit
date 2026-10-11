@@ -1,4 +1,4 @@
-"""JSON API for the web app: the engine behind auditefactura.ro, running in the browser (Pyodide).
+"""JSON API for the web app: the engine behind Clarifact (clarifact.ro), running in the browser (Pyodide).
 
 The web worker calls ``Api.call(method, args_json)`` and gets JSON back (or ``bytes`` for reports).
 Each public method returns what one screen needs, with the same queries as the Streamlit app, so

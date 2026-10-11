@@ -1,130 +1,126 @@
-# STATUS: e-Factura Anomaly Audit
+# STATUS: Clarifact (code name efactura-audit)
 
 **Start every session here.** Update the "Now", "Next" and "Session log" sections at the end of each session.
 
-Last updated: 8 Oct 2026 · Version 0.2.0 · Phase: **Web product: phase B built, waiting for Gabriel's review**
+Last updated: 11 Oct 2026 · Version 0.2.0 · Phase: **launch preparation (free beta)**
 
 ## Now
 
-**Direction changed on 7 Oct 2026:** the product becomes a website (working name auditefactura.ro). Users log
-in, add their company and audit their invoices, free at first, with a paid subscription later. The Streamlit
-app, CLI and MCP server stay for internal testing.
-
-**Phase B is built** (`web/app/`): every screen of the Streamlit app, with the engine running in the browser
-and the same numbers (37 flags with identical IDs, scores and amounts on the demo). It is not deployed
-anywhere yet; it runs locally with `npm run dev`.
+**Product:** Clarifact (clarifact.ro, not yet registered), a website that checks a company's supplier invoices
+from e-Factura: near-duplicates, supplier price increases, unusual amounts, VAT patterns, supplier and bank
+account changes. Invoices are processed and stored only in the user's browser. Free beta first, paid tier later.
+The name avoids "e-Factura" (a state system) and "audit" (statutory financial audit is a regulated profession).
+The Python package keeps its code name `efactura_audit`; the web app takes the name from `web/app/src/brand.ts`.
 
 | Area | State |
 |---|---|
-| Audit engine (import, 5 checks, review, reports) | Done. 99–100 % recall on synthetic data; 9,895 invoices audit in 12 s natively |
-| Engine in the browser (Pyodide) | Done. First visit about 15 s to start (about 50 MB), return visit 8 s; demo audit 4 s. Data kept in the browser (OPFS) |
-| Data layer (dbt-style SQL models + data tests) | Done: raw → staging → intermediate → marts; 35 data tests. The web UI reads the marts |
-| Streamlit app (internal) | Done, with Data tab (lineage, table browser, charts, data tests, SQL) |
-| AI assistant + MCP server | Built for local use; moves to the server for the web paid tier |
-| Web app (phase B) | **Built**: landing page plus all 9 screens, RO/EN, light/dark, phone layout. Own design (dark rail, cards). Parity checklist: `docs/web-parity-checklist.md` |
-| Login, hosting, domain | After phase B works (Gabriel's decision, 8 Oct) |
-| Competitors | in-balanta.ro (cloud, SPV sync, IBAN-change and inactive-supplier alerts, cash flow; 4,000+ companies) and ARHIVAR (SPV archive, thresholds; 8 RON/company/month). Neither analyses invoice lines |
-| Tests | 74 Python + 13 browser tests (Edge); engine and landing also pass in Chrome, Firefox and WebKit |
-| Version control | Private GitHub repo gabrieln2805/efactura-audit, branch `main` |
+| Checking engine (import, 5 checks, review, reports) | Done. 99–100 % recall on synthetic data (33/33 planted anomalies on the test-pack client); 9,895 invoices in 12 s natively |
+| Web app (`web/app/`) | Built: landing page and 9 screens, RO/EN, light/dark, phone layout; engine in the browser (Pyodide), data in the browser (OPFS). Import history with undo, "keep one company", "start fresh". Runs locally only |
+| Performance (Edge, Gabriel's PC) | First visit about 15 s (about 50 MB), return visit 6–8 s; demo check 3–4 s; 8,217 invoices imported and checked in 44 s |
+| AI assistant | **Parked**, shown as "coming soon". Works behind Settings → Developer options with an open-source model (Qwen3 via Ollama) through the site's `/api/assistant` endpoint |
+| Streamlit app, CLI, MCP server | Internal testing tools |
+| Tests | 80 Python + 17 browser tests (Edge); engine and landing also pass in Chrome, Firefox and WebKit |
+| Test pack | `scripts/make_test_pack.py` → `~/efactura-test-pack` (3 invented clients, problem files, 8,217-invoice stress file, `TEST_PLAN.md` with expected numbers) |
+| Login, hosting, domain, legal pages | **Not done** |
 | Real invoices | **Never tested** |
-| Demand | **Untested** for a self-serve web tool |
+| Demand | **Untested** |
+| Version control | Private GitHub repo gabrieln2805/efactura-audit, branch `main` |
 
-## Next
+## Next (immediate)
 
-In order; owner in brackets. Details and acceptance checks are in "Action plan" below.
+In order; owner in brackets.
 
-1. **[Gabriel] Review phase B:** `cd web/app`, `npm install`, `npm run dev`, open http://127.0.0.1:5180, go
-   through `docs/web-parity-checklist.md` next to the Streamlit app, and sign it off. If possible, also open it
-   on an iPhone or Mac (Safari is the one browser not tested on a real device).
-2. **[Claude] Fixes from the review.**
-3. **[Gabriel] Phase C set-up** (domain, legal entity, Supabase and Cloudflare accounts); then **[Claude]**
-   login, company profile, deploy (including serving Pyodide from our own domain), and **[Gabriel]** the demand test.
-4. **[Both] Phase D:** the differentiators, in the ranked order below.
+1. **[Gabriel] Name:** search "Clarifact" in the OSIM and EUIPO trademark databases (class 9 software, 42 SaaS),
+   then register clarifact.ro. clarifact.com is taken by someone else (unknown use). Fallbacks: Contrapreț,
+   Lupa Facturi (both .ro looked free on 11 Oct).
+2. **[Gabriel] Entity:** decide the company that publishes the site (Law 365/2002 requires its name, address,
+   trade-register number, CUI and contact on the site).
+3. **[Gabriel] Try the app with the test pack** (`TEST_PLAN.md`) and sign off `docs/web-parity-checklist.md`;
+   open it once on an iPhone or Mac (Safari untested on a real device).
+4. **[Claude] Launch basics, no accounts needed:**
+   - serve Pyodide and its packages from our own domain (no third-party CDN);
+   - draft terms of use, privacy policy, storage notice and the provider-identification page, for a lawyer to review;
+   - hide developer options in the production build;
+   - wording pass: "verificare", and "not a financial audit" in the disclaimer;
+   - Romanian text for the data-test messages.
+5. **[Claude] First-run experience:** guided import ("Where are your invoices?": from SPV, from the accounting
+   software, a folder or ZIP), company detected from the invoices (no CUI field), plain-language import results.
+6. **[Claude] Several clients in one browser** (a client switcher, one workspace each): the accountant use case.
+7. **[Claude] Supplier price-increase report**, the launch hook, with a demo scenario where suppliers pass on the
+   August 2025 VAT change.
+8. **[Gabriel] Lawyer review** of the name, terms and privacy policy; then **publish the free beta** and run
+   5–10 conversations with accountants and controllers.
+9. **[Claude] Investigate:** whether SPV sync can run entirely in the browser (ANAF OAuth and CORS), and whether
+   ANAF's public company-status API can be called from the browser. These decide what needs a server.
 
-## Product direction (ranked 8 Oct 2026)
+## Market (researched 11 Oct 2026)
 
-**Positioning:** not another e-Factura archive or SPV connector (those cost 5–8 RON/company/month). Instead,
-purchase control for SMEs and their accountants: price intelligence per invoice line, checks before
-payment, AI that turns flags into money recovered, and invoices that never leave the user's computer.
-
-| # | Differentiator | What it is |
+| Category | Examples | Overlap |
 |---|---|---|
-| 1 | **Supplier price-increase report** (launch hook) | "How much did your suppliers' price increases cost you?" Net price changes per item since the August 2025 VAT change, extra cost in lei, compared with official inflation for the category (INS CPI/PPI) |
-| 2 | **Check before paying** | Upload the payment batch or bank export (CSV, MT940, CAMT.053) before sending it. Flags: a different account than the supplier's e-Factura history, invoices paid twice, payments for flagged invoices, invoices that never went through e-Factura. Name-to-IBAN verification doesn't cover RON transfers until 2027 |
-| 3 | **AI that closes the loop** | For each flag, the assistant gathers the evidence and drafts the Romanian email to the supplier (credit note request, account confirmation, price justification) or an internal note; the user approves. Paid tier: hosted MCP server with login, so Claude or ChatGPT can use the company's data |
-| 4 | **Tax-deduction protection** | e-Factura compared with the purchase ledger (SAF-T D406 or an accounting export): invoices booked without e-Factura (15 % fine for the buyer, no VAT deduction) and e-Factura invoices not booked (missed deductions). Supplier fiscal status from ANAF's public API (inactive, VAT cancelled, cash-accounting VAT, e-Factura register). Preview of the pre-filled VAT return (P300) |
-| 5 | **Price benchmarks across companies** (long-term moat) | Invoice lines classified into CPV codes (embeddings running in the browser, which also fixes the "toner 85A" split); opt-in sharing of aggregates only (category, unit price, month), shown when at least 5 companies contribute; seeded from public procurement prices (SEAP) |
-| 6 | **Accountants as the sales channel** | Portfolio view of all clients ranked by risk; a monthly supplier-control report under the accountant's brand, which they can bill as a service |
-| 7 | **Privacy, proven** | A strict browser policy that blocks uploads of invoice data; optionally open-source the engine so the claim can be checked |
+| Invoicing and accounting software with SPV retrieval | SmartBill, FGO, Oblio, Facturis, SAGA, WinMentor, NextUp, Keez, Nexus ERP | Low: they fetch and book invoices; some add AI chat (FGO, Facturis). No line-level price analysis found |
+| SPV download and archive apps | efacturaspv.ro, ispv.ro, iApp, SimpluSPV (from 49 EUR/month), 4Secunde, e-Tigris, ARHIVAR | None: commodity |
+| **in-balanta.ro** (closest for SMEs) | VAT dashboard, cash flow; checks: VAT rate, inactive supplier, duplicates at import, bank-account change alert; multi-company for accountants; automatic SPV sync; 3 months free; claims 4,000+ companies | Medium: covers header-level checks; no line-price or near-duplicate analysis found |
+| **Profluo** (large companies) | Automated commercial verification: prices vs contracts, orders and goods receipts (2-/3-way matching), duplicates, supplier price trends, ML | High on prices, but needs contracts/ERP data and an implementation; not self-serve for SMEs |
+| Supplier-risk monitoring | Termene.ro (insolvency, state debts, shareholder changes; in SmartBill), Zarina CRM | Low: company-level |
+| Accountant portfolio | ManagerConta (SmartBill, free) | Indirect |
 
-**Basics to match cheaply (paid tier):** SPV sync and legal archive (ANAF keeps messages about 60 days),
-inactive-supplier alerts, several companies per account, notifications.
-**Pricing hypothesis:** basics at market level; the insights tier at 49–149 RON/month, justified by the lei
-the reports find. To be validated in the demand test.
+**Gap:** no self-serve SME tool found that measures supplier price increases from invoice lines without contracts
+or an ERP. **Our weak spot:** manual import versus in-balanta's automatic SPV sync. **Changed context:** OUG
+13/2026 (March 2026) removed the e-TVA notices for P300 differences, so the P300 preview is less urgent.
+
+## Product direction (re-ranked 11 Oct 2026)
+
+**Positioning:** purchase control for SMEs and their accountants: price intelligence per invoice line, checks
+before payment, and invoices that never leave the user's computer. Not an SPV archive or connector.
+
+| # | Focus | Why |
+|---|---|---|
+| 1 | **Supplier price-increase report** (launch hook) | Unique, measured in lei, works without contracts; shareable PDF |
+| 2 | **Effortless first import** | Users who get stuck at import never see the value |
+| 3 | **Accountants as the channel** | Several clients per browser now; a monthly supplier-control report per client they can bill |
+| 4 | **Basics in-balanta has** | Supplier fiscal status from ANAF (inactive, VAT cancelled); our near-duplicate check already goes further |
+| 5 | **Check before paying** | Bank payment batch vs e-Factura history (different account, paid twice, flagged invoices) |
+| 6 | **SPV sync** | Browser-only if technically possible (unique with privacy); otherwise a paid server feature |
+| Later | Tax-deduction protection (SAF-T/ledger vs e-Factura, P300 preview), cross-company price benchmarks, AI assistant (parked; open-source model hosted in the EU) | |
+
+**Pricing hypothesis:** free beta; later basics at market level and an insights tier at 49–149 RON/month,
+justified by the lei the reports find. To validate in the conversations.
+
+## Launch checklist (legal and trust)
+
+Not legal advice; a Romanian lawyer reviews it once before going public.
+
+- **Invoices never reach us** (processed and stored in the browser): keep it literally true. No analytics or
+  error reporting that captures content; the AI assistant, when it returns, says exactly what it sends.
+- **Provider identification** on the site (Law 365/2002): company name, address, trade-register number, CUI, contact.
+- **Privacy policy:** what we process (server and CDN logs, IP addresses), storage in the browser, third parties.
+  Self-host Pyodide so no third-party CDN sees users' IPs.
+- **Storage notice** (Law 506/2004): the local database and preferences are strictly necessary for the service
+  the user asked for, so no consent banner while there are no analytics or advertising cookies (to confirm).
+- **Terms of use:** free beta, as is, limited liability; flags are prompts to check, not conclusions; no tax or
+  accounting advice; **not a financial audit**; the user confirms the right to process the invoices imported.
+- **Wording:** no suggestion of a financial audit (Law 162/2017) or of any link with ANAF; "e-Factura" only to
+  describe the invoices.
 
 ## Architecture
 
 - **Free tier, local-first:** a static site; the engine runs in the user's browser (Pyodide in a Web Worker).
   Invoices are uploaded as ZIPs, processed and stored in the browser, and never reach our servers. Login
-  (Supabase) stores only the account, the company's CUI and name, and the subscription.
-- **Paid tier, server-side:** ANAF SPV sync through ANAF's OAuth API (the company authorizes once with its
-  qualified certificate; the token lasts 90 days), alerts, the hosted assistant and MCP server, several
-  companies per account, benchmark aggregation. Paid features live on the server because browser-side
-  gating can be bypassed.
-- **Repo layout:** `src/efactura_audit` stays the engine, shared by the website, the Streamlit app and the CLI.
-  The web app goes in `web/app/` (the spike is `web/spike/`), Supabase migrations and edge functions in
-  `supabase/`. The marts (`fct_invoices`, `fct_flags`, `dim_suppliers`, ...) are what the UI reads.
+  (later) stores only the account, the company's CUI and name, and the subscription.
+- **Server-side, only where needed:** the AI assistant endpoint (`/api/assistant`, open-source model in the EU),
+  ANAF company-status lookups if the browser cannot call ANAF directly, SPV sync if it cannot run in the browser,
+  alerts. Paid features live on the server because browser-side gating can be bypassed.
+- **Repo layout:** `src/efactura_audit` is the engine, shared by the website, the Streamlit app and the CLI;
+  the web app is `web/app/` (the spike is `web/spike/`). The marts (`fct_invoices`, `fct_flags`,
+  `dim_suppliers`, ...) are what the UI reads.
 
-## Action plan
+## History of phase B (web version of the tool)
 
-### Phase B: web version of today's tool (built 8 Oct 2026; waiting for the sign-off)
-
-**Scope: exactly what the Streamlit app does today.** Same screens, same results, nothing new; the engine
-runs in the browser. Out of scope: login, payments, server, new features.
-
-**Stack:** Vite, React and TypeScript; the engine in a Pyodide Web Worker behind a typed message API; Plotly.js
-(cartesian bundle) so the charts match the current app; `@hpcc-js/wasm-graphviz` for the lineage graph (the same
-Graphviz engine Streamlit uses); a small sortable table component of our own (TanStack Table 9 changed its API
-and was more than needed); UI strings exported from `app/i18n.py`, so RO/EN has one source;
-the database kept in OPFS (the browser's private file storage); Playwright tests in Edge. Node.js 24 is
-installed on the PC.
-
-| Milestone | Deliverables | Done when |
-|---|---|---|
-| **B1. Engine and shell** (week 1) | `efactura_audit.web` module with JSON in and out (import files, run audit, query a mart, save feedback, reports, settings); worker that starts loading when the page opens, with progress; database kept between visits; "load demo data"; app shell with tabs, RO/EN and light/dark | A Playwright test loads the demo and gets the same 37 flags as native; a reload keeps the data |
-| **B2. Main screens** (weeks 2–3) | Overview (KPIs, flags by check, monthly spend, top flags); Flags (filters, detail with evidence and price chart, invoices involved, confirm/dismiss with note); Invoices (search, detail with lines and flags); Suppliers (table, monthly spend, bank accounts, flags) | Every element of these four Streamlit tabs is present, with the same numbers on the demo |
-| **B3. Remaining screens** (weeks 3–4) | Import (ZIP/XML upload, buyer CUI filter, data checks, import log); Data (lineage, table browser, charts, data tests, SQL); Report (Excel and PDF download); Settings (thresholds, review statistics); AI assistant (cloud providers off by default, key kept for the session only, same redaction; local Ollama when it allows the site's origin; providers call the APIs with `fetch` instead of httpx) | Same as B2 for these tabs; a deliberately broken workspace shows its failing data tests |
-| **B4. Landing page and finish** (week 5) | Romanian landing page (English too): what the tool does, privacy, "try the demo"; disclaimer on every page; parity checklist against Streamlit; cross-browser check (Edge, Chrome, Firefox, Safari); performance budget | Gabriel signs off the checklist; return-visit load ≤ 10 s; demo audit ≤ 8 s |
-
-**Result:** B1–B4 done and tested automatically; only Gabriel's sign-off is left. Return visit 7.9 s, first visit
-14.9 s, audit 4.1 s (Edge, Gabriel's PC). scikit-learn (with scipy, the slowest packages) loads in the background
-after start-up and is awaited only before an audit, which halved the start-up time.
-
-### Phase C: accounts and go-live (about 1–2 weeks, after B)
-
-- **[Gabriel]** Domain (auditefactura.ro or another), legal entity, Supabase (Frankfurt) and Cloudflare accounts.
-- **[Claude]** Supabase login (email and passkeys); company profile with the name looked up by CUI in ANAF's
-  public register (through an edge function); waitlist; terms, privacy policy, cookie notice; deploy to
-  Cloudflare Pages with a strict content security policy; privacy-friendly analytics.
-- **[Gabriel] Demand test:** share the site; 5–10 conversations with controllers and accountants; decide the
-  success threshold before starting.
-
-### Phase D: differentiators in the free tier, in ranked order (each about 1–3 weeks)
-
-1. **Price-increase report:** add a scenario to the synthetic data where suppliers pass on the VAT change, so the
-   demo has something to show; bring in INS price indices.
-2. **Check before paying:** parsers for the bank export formats of the main Romanian banks.
-3. **AI that closes the loop:** drafts per flag, using the user's own key until the server exists.
-4. **Tax-deduction protection:** SAF-T D406 parser, ANAF status lookup through the edge function, P300 preview.
-
-**Verify before building:** INS indices per product category; SEAP unit-price open data; the export formats
-of the main banks.
-
-### Phase E: paid tier and server
-
-SPV OAuth sync, archive and alerts; hosted assistant and MCP server with login; benchmark aggregation (#5);
-accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscriptions; GDPR processor documents
-(DPA, sub-processors, breach procedure).
+Built 8 Oct 2026 and tested automatically (B1 engine and shell, B2 main screens, B3 remaining screens, B4 landing,
+cross-browser, performance budget); Gabriel's sign-off of `docs/web-parity-checklist.md` is still open. Stack:
+Vite, React, TypeScript; Pyodide worker; Plotly.js; `@hpcc-js/wasm-graphviz`; own sortable table; UI strings
+from `app/i18n.py`; OPFS; Playwright. scikit-learn loads in the background after start-up and is awaited only
+before a check run, which halved the start-up time.
 
 ## Setup on Gabriel's PC
 
@@ -155,10 +151,11 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
 
 | Issue | Priority | Note |
 |---|---|---|
-| Demand for a self-serve web tool | High | The demand test in phase C |
+| Demand for a self-serve web tool | High | Free beta and 5–10 conversations (Next, step 8) |
+| Name "Clarifact" not yet checked | High | OSIM/EUIPO search and domain registration (Next, step 1) |
 | Safari on a real device untested | High | Playwright's WebKit on Windows has no OPFS, so only the "data not kept" warning was checked there. Safari without `createWritable` uses the snapshot fallback (tested in Chromium with `?storage=snapshot`) |
-| Pyodide loads from the jsDelivr CDN | Medium (phase C) | Serve it from our own domain, with a strict content security policy |
-| Hosted assistant server for production | High (phase C) | Same contract as `web/app/dev/assistantProxy.ts`, deployed with login and per-account quotas. Model: open source (decided 11 Oct), served in the EU, either by an inference provider for open models or on our own GPU server (vLLM/Ollama); compare cost per question vs a fixed GPU. Ship it with `approved: true` only after the Romanian test passes. Qwen3 8B is the first candidate; larger open models if it fails |
+| Pyodide loads from the jsDelivr CDN | High (before launch) | Third-party CDN sees users' IPs; serve it from our own domain, with a strict content security policy |
+| Hosted assistant server for production | Parked | Same contract as `web/app/dev/assistantProxy.ts`, deployed with login and per-account quotas. Model: open source (decided 11 Oct), served in the EU, either by an inference provider for open models or on our own GPU server (vLLM/Ollama); compare cost per question vs a fixed GPU. Ship it with `approved: true` only after the Romanian test passes. Qwen3 8B is the first candidate; larger open models if it fails |
 | Local Ollama from the website | Medium | Needs `OLLAMA_ORIGINS` set to the site's address; Chrome may also need Private Network Access headers. The web assistant has no MCP option (no subprocess in a browser) |
 | Real-data validation | High | First real archives come from early web users or friendly companies |
 | Browser: first visit about 15 s and 50 MB | Medium | Report packages load only when a report is built, scikit-learn after start-up. Still to do: ship the DejaVu font instead of matplotlib (−7 MB), Service Worker cache |
@@ -174,6 +171,11 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
 
 ## Decisions
 
+- **11 Oct 2026:**
+  - Product name **Clarifact** (no "e-Factura", no "audit"); UI says "verificare" / "checks" instead of "audit".
+  - AI assistant parked ("coming soon"); when it returns it uses open-source models hosted in the EU, not GPT.
+  - Focus to win clients: price-increase report, effortless import, accountants (several clients per browser),
+    ANAF supplier status; not SPV archiving. Free beta first.
 - **8 Oct 2026:**
   - The web app has its own design (dark navigation rail, cards, Inter font), not Streamlit's; functions and
     numbers match.
@@ -250,10 +252,13 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
   "Ollama is not running"). Gabriel's PC (RTX 5050 8 GB, 32 GB RAM) fits qwen3:8b on the GPU.
   AI work is **parked**: users see "coming soon" on the Assistant screen, the menu and the landing page; the
   working assistant stays reachable through Settings → Developer options.
+  Market research (Romanian tools: in-balanta, Profluo, SPV apps, invoicing software, Termene) and the legal
+  checklist for publishing; focus re-ranked. **Renamed to Clarifact**: brand, page titles, report titles and file
+  names, Streamlit title; "audit" replaced by "verificare"/"checks" in the UI; hosted provider id is now `hosted`.
 
 ## For Claude at the start of a session
 
-Read this file, then `README.md`. For web work, read "Action plan" above and README's "Web app" section; run
+Read this file, then `README.md`. For web work, read README's "Web app" section; run
 `npm test` in `web/app` after web changes. Run
 `python -m pytest` before changing code; for engine changes, compare flags against the 3-seed snapshot.
 The project doc `claude/status.md` in the "efactura anomaly" Project mirrors this file.

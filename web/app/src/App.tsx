@@ -4,6 +4,7 @@ import {
   Settings, Sparkles, Sun, Upload,
 } from "lucide-react";
 import { engine, useApp, type Theme } from "./state";
+import { BRAND } from "./brand";
 import { EngineSplash, EngineChip, Spinner, Toasts } from "./components/chrome";
 import { Overview } from "./screens/Overview";
 import { Flags } from "./screens/Flags";
@@ -53,7 +54,7 @@ function Rail({ route, onNavigate }: { route: string; onNavigate: () => void }) 
     <aside className="rail">
       <a className="brand" href="#/" onClick={onNavigate}>
         <span className="brand-mark"><ReceiptText size={17} /></span>
-        <span className="brand-name">auditefactura<span>.ro</span></span>
+        <span className="brand-name">{BRAND}</span>
       </a>
       <nav className="nav" aria-label={L("menu")}>
         {SCREENS.map(({ id, label, icon: Icon, sep }) => (
@@ -131,7 +132,7 @@ function Shell({ route }: { route: string }) {
   const View = screen.view;
   useDemoLink();
   useEffect(() => {
-    document.title = `${L(screen.label)} · auditefactura.ro`;
+    document.title = `${L(screen.label)} · ${BRAND}`;
   }, [screen, L]);
   return (
     <div className={`shell${menuOpen ? " menu-open" : ""}`}>
@@ -140,7 +141,7 @@ function Shell({ route }: { route: string }) {
       <main className="main">
         <div className="mobile-bar">
           <button className="icon-btn" onClick={() => setMenuOpen(true)} aria-label={L("menu")}><Menu size={18} /></button>
-          <span className="brand-name">auditefactura<span>.ro</span></span>
+          <span className="brand-name">{BRAND}</span>
         </div>
         <TopBar screen={screen} />
         <div className="content">
@@ -155,12 +156,15 @@ function Shell({ route }: { route: string }) {
 }
 
 export default function App() {
+  const { L } = useApp();
   const route = useRoute();
   const inApp = route !== "home";
   useEffect(() => {
     if (inApp) engine.start();
-    else document.title = "auditefactura.ro · audit e-Factura în browser";
     window.scrollTo(0, 0);
   }, [inApp]);
+  useEffect(() => {
+    if (!inApp) document.title = `${BRAND} · ${L("app_title")}`;
+  }, [inApp, L]);
   return inApp ? <Shell route={route} /> : <><Landing /><Toasts /></>;
 }

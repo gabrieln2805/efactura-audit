@@ -10,6 +10,7 @@ import { Loading, NoData, Spinner } from "../components/chrome";
 import { Callout, Disclosure, Field, JsonTree } from "../components/ui";
 import { EXAMPLES } from "../i18n";
 import { HOSTED, sessionKeys, useHostedInfo, useModelTest } from "../ai";
+import { BRAND } from "../brand";
 
 type Trace = { name: string; arguments: Record<string, unknown>; result: unknown };
 type Msg = { role: "user" | "assistant"; content: string; trace?: Trace[] };
@@ -169,7 +170,7 @@ function AssistantChat() {
                 )}
                 {messages.map((m, i) => (
                   <div key={i} className={`msg ${m.role}`}>
-                    <div className="msg-who">{m.role === "user" ? L("you") : <><Sparkles size={13} /> {current === HOSTED ? "auditefactura.ro" : chosen.model}</>}</div>
+                    <div className="msg-who">{m.role === "user" ? L("you") : <><Sparkles size={13} /> {current === HOSTED ? BRAND : chosen.model}</>}</div>
                     {m.role === "user" ? <div className="msg-text">{m.content}</div> : <Markdown text={m.content} />}
                     {m.trace && m.trace.length > 0 && (
                       <Disclosure title={L("sources", { n: m.trace.length })}>
