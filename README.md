@@ -252,19 +252,21 @@ writes the native engine's demo results that the browser tests compare against. 
 through `efactura_audit/web.py` (one JSON method per screen, the same queries as the Streamlit app).
 
 **AI assistant in the web app.** Users get the site's own assistant: the agent loop and the tools run in the
-browser, and only the model call goes to the site's `/api/assistant` endpoint, which adds the key and picks the
-model, so no key reaches the page. Tool results are redacted as for any cloud model (IBANs masked, sole traders
-pseudonymised). Locally, `npm run dev` serves that endpoint (`dev/assistantProxy.ts`) with the key from the
-environment or `web/app/.env.local` (git-ignored):
+browser, and only the model call goes to the site's `/api/assistant` endpoint, which picks the model (and adds a
+key if the service needs one), so nothing secret reaches the page. Tool results are redacted as for any cloud
+model (IBANs masked, sole traders pseudonymised). The model is open source: by default Qwen3 8B served by Ollama
+on the server. Locally, `npm run dev` serves that endpoint (`dev/assistantProxy.ts`):
 
 ```
-ASSISTANT_API_KEY=...            # or MISTRAL_API_KEY / OPENAI_API_KEY
-ASSISTANT_API_URL=...            # optional, any OpenAI-compatible API (default: Mistral or OpenAI, by the key)
-ASSISTANT_MODEL=...              # optional (default: mistral-small-latest / gpt-4.1-mini)
+ollama pull qwen3:8b
+$env:OLLAMA_CONTEXT_LENGTH = "16384"; ollama serve     # the default context is too short for tool results
 ```
 
+Another OpenAI-compatible service (an EU host for open models, vLLM on our own server) is set in
+`web/app/.env.local` (git-ignored) with `ASSISTANT_API_URL`, `ASSISTANT_MODEL` and, if needed, `ASSISTANT_API_KEY`.
 The assistant is offered once its model passes the Romanian test (the button on the Assistant screen, or
-Settings → Developer options). Ollama, cloud models with your own key and untested models are developer options.
+Settings → Developer options). Ollama in the browser, cloud models with your own key and untested models are
+developer options.
 
 ## Known limits and next steps
 

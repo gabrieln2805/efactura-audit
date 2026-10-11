@@ -123,19 +123,27 @@ async function hostedInfo(info: object) {
   await expect(page.getByTestId("engine-chip")).toHaveAttribute("data-phase", "ready", { timeout: 200_000 });
 }
 
-test("assistant: users get the site's assistant, with no key in the browser (server mocked)", async () => {
+test("assistant: parked for users, shown as coming soon", async () => {
+  await page.goto("/#/assistant");
+  await expect(page.getByTestId("ai-soon")).toContainText("Asistentul AI este în lucru");
+  await expect(page.locator(".nav .badge.soon")).toHaveText("în curând");
+  await page.goto("/#/settings");
+  await page.getByText("Opțiuni pentru dezvoltare").click();   // developer options open the working version
+});
+
+test("assistant (developer options): the site's assistant, with no key in the browser (server mocked)", async () => {
   const seen: (string | undefined)[] = [];
   await page.context().route("**/api/assistant/chat/completions", fakeModel(seen));
 
-  await hostedInfo({ available: false });
-  await expect(page.getByTestId("ai-not-set-up")).toBeVisible();
+  await hostedInfo({ available: false, model: "qwen3:8b", reason: "Ollama is not running at http://localhost:11434." });
+  await page.goto("/#/settings");   // with developer options on, Ollama stays offered; Settings shows why the server is off
+  await expect(page.getByTestId("ai-status")).toContainText("Ollama is not running at http://localhost:11434.");
 
   await hostedInfo({ available: true, model: "gpt-test", upstream: "api.openai.com", approved: false });
   await expect(page.getByTestId("hosted-untested")).toContainText("gpt-test");
   await expect(page.getByRole("button", { name: "Rulează testul acum" })).toBeEnabled();
 
   await hostedInfo({ available: true, model: "gpt-test", upstream: "api.openai.com", approved: true });
-  await expect(page.getByTestId("provider")).toHaveCount(0);   // no provider or model pickers for users
   await expect(page.getByText("Fișierele facturilor nu se trimit")).toBeVisible();
   await page.getByTestId("chat-input").fill("Câte facturi sunt?");
   await page.getByTestId("chat-input").press("Enter");
@@ -151,7 +159,6 @@ test("assistant: developer options still allow a cloud model with your own key (
   const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "POST, OPTIONS" };
   await page.context().route("https://api.openai.com/v1/chat/completions", fakeModel(seen, cors));
   await page.goto("/#/settings");
-  await page.getByText("Opțiuni pentru dezvoltare").click();
   await page.getByText("Permite modele cloud").click();
   await page.getByText("Arată și modele netestate").click();
   await page.goto("/#/assistant");

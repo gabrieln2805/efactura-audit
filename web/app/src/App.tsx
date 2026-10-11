@@ -63,6 +63,7 @@ function Rail({ route, onNavigate }: { route: string; onNavigate: () => void }) 
               <Icon size={17} />
               {L(label)}
               {id === "flags" && status && status.open_flags > 0 && <span className="badge">{status.open_flags}</span>}
+              {id === "assistant" && <span className="badge soon">{L("soon")}</span>}
             </a>
           </div>
         ))}

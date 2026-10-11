@@ -48,7 +48,27 @@ function HostedUntested({ model, onPassed }: { model: string; onPassed: () => vo
   );
 }
 
+/** The assistant is parked: users see what is coming; developer options (Settings) open the working version. */
 export function Assistant() {
+  const [devMode] = usePref("dev_mode", false);
+  return devMode ? <AssistantChat /> : <AssistantSoon />;
+}
+
+function AssistantSoon() {
+  const { L, lang } = useApp();
+  return (
+    <section className="card center-card soon-card" data-testid="ai-soon">
+      <Sparkles size={24} className="feature-icon" />
+      <h2>{L("ai_soon_title")}</h2>
+      <p className="hint">{L("ai_soon_body")}</p>
+      <div className="examples" aria-hidden="true">
+        {EXAMPLES[lang].map((ex) => <span key={ex} className="chip-btn static">{ex}</span>)}
+      </div>
+    </section>
+  );
+}
+
+function AssistantChat() {
   const { L, lang, status } = useApp();
   const hosted = useHostedInfo();
   const [devMode] = usePref("dev_mode", false);
@@ -105,6 +125,7 @@ export function Assistant() {
         <section className="card center-card" data-testid="ai-not-set-up">
           <h2>{L("ai_not_set_up")}</h2>
           <div className="hint">{L("ai_not_set_up_help")}</div>
+          {hosted?.reason && <div className="error-box" data-testid="ai-reason">{hosted.reason}</div>}
           <div className="empty-actions"><a className="btn" href="#/settings"><SettingsIcon size={15} />{L("go_settings")}</a></div>
         </section>
       ) : (

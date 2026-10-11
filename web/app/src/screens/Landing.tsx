@@ -31,7 +31,7 @@ const COPY = {
     privacy: [
       ["Procesare în browser", "Motorul de audit rulează pe calculatorul dumneavoastră (WebAssembly). Nu există server care să primească facturile."],
       ["Stocare locală", "Datele sunt păstrate în spațiul privat al browserului și pot fi șterse oricând."],
-      ["Asistent AI opțional", "Implicit un model local (Ollama). Modelele cloud doar dacă le activați, cu cheia dumneavoastră și cu IBAN-urile mascate."],
+      ["Asistent AI (în curând)", "Răspunsuri în limba română din datele dumneavoastră, cu un model AI open-source găzduit în UE. Fișierele facturilor nu îi sunt trimise."],
     ],
     firstVisit: "Prima pornire descarcă aproximativ 50 MB (motorul de analiză); următoarele pornesc din memoria browserului.",
     disclaimer: "Semnalările sunt indicii de verificat, nu concluzii. Instrumentul nu oferă consultanță fiscală sau contabilă.",
@@ -60,7 +60,7 @@ const COPY = {
     privacy: [
       ["Processed in the browser", "The audit engine runs on your computer (WebAssembly). There is no server that receives invoices."],
       ["Stored locally", "Data is kept in the browser's private storage and can be deleted at any time."],
-      ["Optional AI assistant", "A local model (Ollama) by default. Cloud models only if you enable them, with your own key and IBANs masked."],
+      ["AI assistant (coming soon)", "Answers in Romanian from your data, with an open-source AI model hosted in the EU. Invoice files are not sent to it."],
     ],
     firstVisit: "The first start downloads about 50 MB (the analysis engine); later visits start from the browser's cache.",
     disclaimer: "Flags are prompts to check, not conclusions. The tool gives no tax or accounting advice.",

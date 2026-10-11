@@ -116,6 +116,7 @@ export function Settings() {
           {!hosted ? <Spinner size={13} /> : !hosted.available ? L("ai_not_set_up")
             : L(hostedOk ? "ai_status_ok" : "ai_status_untested", { m: hosted.model ?? "", u: hosted.upstream ?? "" })}
         </div>
+        {hosted && !hosted.available && hosted.reason && <div className="error-box">{hosted.reason}</div>}
       </section>
 
       <section className="card detail">

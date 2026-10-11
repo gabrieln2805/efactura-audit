@@ -158,7 +158,7 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
 | Demand for a self-serve web tool | High | The demand test in phase C |
 | Safari on a real device untested | High | Playwright's WebKit on Windows has no OPFS, so only the "data not kept" warning was checked there. Safari without `createWritable` uses the snapshot fallback (tested in Chromium with `?storage=snapshot`) |
 | Pyodide loads from the jsDelivr CDN | Medium (phase C) | Serve it from our own domain, with a strict content security policy |
-| Hosted assistant server for production | High (phase C) | Same contract as `web/app/dev/assistantProxy.ts`, deployed with login, per-account quotas and an EU-hosted model with a data processing agreement; ship it with `approved: true` only after the Romanian test passes |
+| Hosted assistant server for production | High (phase C) | Same contract as `web/app/dev/assistantProxy.ts`, deployed with login and per-account quotas. Model: open source (decided 11 Oct), served in the EU, either by an inference provider for open models or on our own GPU server (vLLM/Ollama); compare cost per question vs a fixed GPU. Ship it with `approved: true` only after the Romanian test passes. Qwen3 8B is the first candidate; larger open models if it fails |
 | Local Ollama from the website | Medium | Needs `OLLAMA_ORIGINS` set to the site's address; Chrome may also need Private Network Access headers. The web assistant has no MCP option (no subprocess in a browser) |
 | Real-data validation | High | First real archives come from early web users or friendly companies |
 | Browser: first visit about 15 s and 50 MB | Medium | Report packages load only when a report is built, scikit-learn after start-up. Still to do: ship the DejaVu font instead of matplotlib (−7 MB), Service Worker cache |
@@ -244,6 +244,12 @@ accountant portfolio (#6); Stripe plus our own e-Factura invoicing for subscript
   key from the environment. Users see no provider or model pickers; a model that has not passed the Romanian test
   shows "run the test now" instead of a blank list. Ollama, own keys, untested models and the model test moved
   to Settings → Developer options. The model test also stops at once when the key or model is rejected.
+- **11 Oct 2026:** The assistant's model is open source, not GPT: the assistant server defaults to Qwen3 8B through
+  Ollama's OpenAI-compatible API, and no longer picks up OPENAI_API_KEY/MISTRAL_API_KEY from the environment (only
+  explicit ASSISTANT_* settings). The Assistant and Settings screens show why the server is unavailable (e.g.
+  "Ollama is not running"). Gabriel's PC (RTX 5050 8 GB, 32 GB RAM) fits qwen3:8b on the GPU.
+  AI work is **parked**: users see "coming soon" on the Assistant screen, the menu and the landing page; the
+  working assistant stays reachable through Settings → Developer options.
 
 ## For Claude at the start of a session
 

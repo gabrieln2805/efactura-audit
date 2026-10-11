@@ -1,27 +1,46 @@
 // Local stand-in for the site's assistant server (phase C deploys the same contract as a small server).
 // The browser engine calls /api/assistant/chat/completions in OpenAI wire format without any key; this proxy adds
-// the key and the model from the server's environment, so neither ever reaches the page.
+// the model (and a key, if the upstream needs one) from the server's environment, so nothing reaches the page.
 //
-//   GET  /api/assistant/info               -> { available, model, upstream, approved }
+//   GET  /api/assistant/info               -> { available, model, upstream, approved, reason? }
 //   POST /api/assistant/chat/completions   -> forwarded to <upstream>/chat/completions
 //
-// Environment (process or web/app/.env.local, which git ignores):
-//   ASSISTANT_API_KEY      key for the upstream; falls back to MISTRAL_API_KEY, then OPENAI_API_KEY
-//   ASSISTANT_API_URL      any OpenAI-compatible base URL (default: Mistral or OpenAI, by the key found)
-//   ASSISTANT_MODEL        model id (default: mistral-small-latest / gpt-4.1-mini)
+// Default: an open-source model (Qwen3 8B) served by Ollama on this machine, through Ollama's OpenAI-compatible
+// API. Start Ollama with OLLAMA_CONTEXT_LENGTH=16384: its default context is too short for the tool results.
+// Any other OpenAI-compatible service (an EU host for open models, vLLM on our own server...) is configured with
+// (process environment or web/app/.env.local, which git ignores):
+//   ASSISTANT_API_URL      base URL, e.g. http://localhost:11434/v1 (default)
+//   ASSISTANT_MODEL        model id (default: qwen3:8b)
+//   ASSISTANT_API_KEY      only if the service needs one
 //   ASSISTANT_MODEL_APPROVED=1   the model passed the Romanian test (otherwise a local test approves it)
 // Request and response bodies are never logged.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadEnv, type Plugin } from "vite";
 
-type Config = { key: string; url: string; model: string; upstream: string; approved: boolean };
+type Config = { key: string; url: string; model: string; upstream: string; approved: boolean; ollama: boolean };
+
+const OLLAMA = "http://localhost:11434/v1";
 
 function resolveConfig(env: Record<string, string | undefined>): Config {
-  const mistral = !env.ASSISTANT_API_KEY && !!env.MISTRAL_API_KEY;
-  const key = env.ASSISTANT_API_KEY || env.MISTRAL_API_KEY || env.OPENAI_API_KEY || "";
-  const url = (env.ASSISTANT_API_URL || (mistral ? "https://api.mistral.ai/v1" : "https://api.openai.com/v1")).replace(/\/$/, "");
-  const model = env.ASSISTANT_MODEL || (url.includes("mistral") ? "mistral-small-latest" : "gpt-4.1-mini");
-  return { key, url, model, upstream: new URL(url).hostname, approved: env.ASSISTANT_MODEL_APPROVED === "1" };
+  // only the ASSISTANT_* settings count: a provider key that happens to be in the environment is never picked up
+  const url = (env.ASSISTANT_API_URL || OLLAMA).replace(/\/$/, "");
+  const model = env.ASSISTANT_MODEL || "qwen3:8b";
+  const host = new URL(url).hostname;
+  return { key: env.ASSISTANT_API_KEY || "", url, model, approved: env.ASSISTANT_MODEL_APPROVED === "1",
+           ollama: url === OLLAMA || /:11434$/.test(new URL(url).host),
+           upstream: host === "localhost" || host === "127.0.0.1" ? `${host} (Ollama)` : host };
+}
+
+/** Is the upstream there, with the model installed? Only checked for Ollama, which is often simply not running. */
+async function probe(cfg: Config): Promise<string | null> {
+  if (!cfg.ollama) return null;
+  try {
+    const r = await fetch(`${cfg.url}/models`, { signal: AbortSignal.timeout(2000) });
+    const ids: string[] = ((await r.json()).data ?? []).map((m: { id: string }) => m.id);
+    return ids.includes(cfg.model) ? null : `Ollama is running but ${cfg.model} is not installed: run "ollama pull ${cfg.model}".`;
+  } catch {
+    return `Ollama is not running at ${cfg.url.replace(/\/v1$/, "")}. Install it from ollama.com, run "ollama pull ${cfg.model}", then start it.`;
+  }
 }
 
 function send(res: ServerResponse, status: number, body: unknown) {
@@ -48,18 +67,18 @@ export function assistantProxy(): Plugin {
     const path = (req.url ?? "").split("?")[0];
     if (!path.startsWith("/api/assistant")) return next();
     if (path === "/api/assistant/info" && req.method === "GET") {
-      return send(res, 200, cfg.key ? { available: true, model: cfg.model, upstream: cfg.upstream, approved: cfg.approved }
-                                    : { available: false });
+      const reason = await probe(cfg);
+      return send(res, 200, reason ? { available: false, model: cfg.model, upstream: cfg.upstream, reason }
+                                   : { available: true, model: cfg.model, upstream: cfg.upstream, approved: cfg.approved });
     }
     if (path === "/api/assistant/chat/completions" && req.method === "POST") {
-      if (!cfg.key) return send(res, 503, { error: { message: "The assistant is not configured on this server." } });
       try {
         const body = JSON.parse(await readBody(req));
         body.model = cfg.model;   // the server decides the model
         delete body.stream;
         const up = await fetch(`${cfg.url}/chat/completions`, {
           method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${cfg.key}` },
+          headers: { "content-type": "application/json", ...(cfg.key ? { authorization: `Bearer ${cfg.key}` } : {}) },
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(120_000),
         });
@@ -68,7 +87,7 @@ export function assistantProxy(): Plugin {
           await up.body?.cancel();
           return send(res, up.status, { error: { message:
             `The model provider rejected the assistant server's API key (HTTP ${up.status}). ` +
-            "Set a valid ASSISTANT_API_KEY (or MISTRAL_API_KEY / OPENAI_API_KEY) on the server and restart it." } });
+            "Set a valid ASSISTANT_API_KEY on the server and restart it." } });
         }
         res.statusCode = up.status;
         res.setHeader("content-type", up.headers.get("content-type") ?? "application/json");

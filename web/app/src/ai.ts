@@ -4,8 +4,9 @@ import { engine } from "./state";
 
 export const HOSTED = "auditefactura";
 
-/** What the site's assistant server offers (GET api/assistant/info): the model it uses and whether it passed. */
-export type HostedInfo = { available: boolean; model?: string; upstream?: string; approved?: boolean };
+/** What the site's assistant server offers (GET api/assistant/info): the model it uses, whether it passed the
+ *  Romanian test, and when unavailable, why (for whoever runs the server, e.g. "Ollama is not running"). */
+export type HostedInfo = { available: boolean; model?: string; upstream?: string; approved?: boolean; reason?: string };
 
 let info: Promise<HostedInfo> | null = null;
 export function useHostedInfo(): HostedInfo | null {
