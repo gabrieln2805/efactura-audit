@@ -2,13 +2,15 @@
 
 **Start every session here.** Update the "Now", "Next" and "Session log" sections at the end of each session.
 
-Last updated: 11 Oct 2026 · Version 0.2.0 · Phase: **launch preparation (free beta)**
+Last updated: 11 Oct 2026 · Version 0.2.0 · Phase: **preparing a free test version, run as a personal project**
 
 ## Now
 
 **Product:** Clarifact (clarifact.ro, not yet registered), a website that checks a company's supplier invoices
 from e-Factura: near-duplicates, supplier price increases, unusual amounts, VAT patterns, supplier and bank
-account changes. Invoices are processed and stored only in the user's browser. Free beta first, paid tier later.
+account changes. Invoices are processed and stored only in the user's browser. **The first public version is a free,
+non-commercial test run by Gabriel as a private person** (decided 11 Oct): no company until the feedback shows it
+is worth one.
 The name avoids "e-Factura" (a state system) and "audit" (statutory financial audit is a regulated profession).
 The Python package keeps its code name `efactura_audit`; the web app takes the name from `web/app/src/brand.ts`.
 
@@ -19,9 +21,10 @@ The Python package keeps its code name `efactura_audit`; the web app takes the n
 | Performance (Edge, Gabriel's PC) | First visit about 15 s (about 50 MB), return visit 6–8 s; demo check 3–4 s; 8,217 invoices imported and checked in 44 s |
 | AI assistant | **Parked**, shown as "coming soon". Works behind Settings → Developer options with an open-source model (Qwen3 via Ollama) through the site's `/api/assistant` endpoint |
 | Streamlit app, CLI, MCP server | Internal testing tools |
-| Tests | 80 Python + 17 browser tests (Edge); engine and landing also pass in Chrome, Firefox and WebKit |
+| Tests | 80 Python + 18 browser tests (Edge); engine and landing also pass in Chrome, Firefox and WebKit |
 | Test pack | `scripts/make_test_pack.py` → `~/efactura-test-pack` (3 invented clients, problem files, 8,217-invoice stress file, `TEST_PLAN.md` with expected numbers) |
-| Login, hosting, domain, legal pages | **Not done** |
+| About, Privacy, Terms pages | Done (RO/EN), linked from every page with a Feedback link (`mailto:`); contact address and operator name set in `web/app/src/brand.ts` |
+| Domain, hosting, contact mailbox | **Not done** |
 | Real invoices | **Never tested** |
 | Demand | **Untested** |
 | Version control | Private GitHub repo gabrieln2805/efactura-audit, branch `main` |
@@ -30,28 +33,30 @@ The Python package keeps its code name `efactura_audit`; the web app takes the n
 
 In order; owner in brackets.
 
-1. **[Gabriel] Name:** search "Clarifact" in the OSIM and EUIPO trademark databases (class 9 software, 42 SaaS),
-   then register clarifact.ro. clarifact.com is taken by someone else (unknown use). Fallbacks: Contrapreț,
-   Lupa Facturi (both .ro looked free on 11 Oct).
-2. **[Gabriel] Entity:** decide the company that publishes the site (Law 365/2002 requires its name, address,
-   trade-register number, CUI and contact on the site).
-3. **[Gabriel] Try the app with the test pack** (`TEST_PLAN.md`) and sign off `docs/web-parity-checklist.md`;
-   open it once on an iPhone or Mac (Safari untested on a real device).
-4. **[Claude] Launch basics, no accounts needed:**
-   - serve Pyodide and its packages from our own domain (no third-party CDN);
-   - draft terms of use, privacy policy, storage notice and the provider-identification page, for a lawyer to review;
+1. **[Gabriel] Name and domain:** search "Clarifact" in the OSIM and EUIPO trademark databases (class 9 software,
+   42 online services), then register clarifact.ro in your own name (private individuals can register .ro; ask the
+   registrar whether your details stay out of the public WHOIS). Fallbacks: Contrapreț, Lupa Facturi.
+2. **[Gabriel] Contact:** create the mailbox `contact@clarifact.ro` (or forward it to your address), and decide
+   whether the pages show your name. GDPR expects the data controller to be identifiable, so a name is
+   recommended: set `OPERATOR` in `web/app/src/brand.ts`.
+3. **[Gabriel] Try the app with the test pack** (`TEST_PLAN.md`); sign off `docs/web-parity-checklist.md`; open it
+   once on an iPhone or Mac.
+4. **[Claude] Before publishing:**
+   - serve Pyodide and its packages from our own domain (no jsDelivr), then update the Privacy page;
    - hide developer options in the production build;
-   - wording pass: "verificare", and "not a financial audit" in the disclaimer;
-   - Romanian text for the data-test messages.
-5. **[Claude] First-run experience:** guided import ("Where are your invoices?": from SPV, from the accounting
-   software, a folder or ZIP), company detected from the invoices (no CUI field), plain-language import results.
-6. **[Claude] Several clients in one browser** (a client switcher, one workspace each): the accountant use case.
-7. **[Claude] Supplier price-increase report**, the launch hook, with a demo scenario where suppliers pass on the
+   - Romanian text for the data-test messages;
+   - hosting set-up for a free static host on a personal account (Cloudflare Pages or GitHub Pages), with a
+     strict content security policy.
+5. **[Claude] First-run experience:** guided import ("Where are your invoices?"), company detected from the
+   invoices (no CUI field), plain-language import results.
+6. **[Claude] Several clients in one browser** (client switcher): the accountant use case.
+7. **[Claude] Supplier price-increase report** (the hook), with a demo scenario where suppliers pass on the
    August 2025 VAT change.
-8. **[Gabriel] Lawyer review** of the name, terms and privacy policy; then **publish the free beta** and run
-   5–10 conversations with accountants and controllers.
-9. **[Claude] Investigate:** whether SPV sync can run entirely in the browser (ANAF OAuth and CORS), and whether
-   ANAF's public company-status API can be called from the browser. These decide what needs a server.
+8. **[Gabriel] Publish the free test version** and gather feedback: 5–10 conversations with accountants and
+   controllers. Decide beforehand what "worth a company" means, e.g. how many used it with real invoices, how many
+   accountants want it for clients, whether anyone would pay.
+9. **[Claude] Investigate:** SPV sync entirely in the browser (ANAF OAuth and CORS); ANAF company-status API from
+   the browser. These decide what needs a server, and so a company and paid tier.
 
 ## Market (researched 11 Oct 2026)
 
@@ -86,27 +91,30 @@ before payment, and invoices that never leave the user's computer. Not an SPV ar
 **Pricing hypothesis:** free beta; later basics at market level and an insights tier at 49–149 RON/month,
 justified by the lei the reports find. To validate in the conversations.
 
-## Launch checklist (legal and trust)
+## Rules for the test phase (personal, non-commercial)
 
-Not legal advice; a Romanian lawyer reviews it once before going public.
+Not legal advice. A one-off lawyer check is useful before publishing and required before charging anything.
 
-- **Invoices never reach us** (processed and stored in the browser): keep it literally true. No analytics or
-  error reporting that captures content; the AI assistant, when it returns, says exactly what it sends.
-- **Provider identification** on the site (Law 365/2002): company name, address, trade-register number, CUI, contact.
-- **Privacy policy:** what we process (server and CDN logs, IP addresses), storage in the browser, third parties.
-  Self-host Pyodide so no third-party CDN sees users' IPs.
-- **Storage notice** (Law 506/2004): the local database and preferences are strictly necessary for the service
-  the user asked for, so no consent banner while there are no analytics or advertising cookies (to confirm).
-- **Terms of use:** free beta, as is, limited liability; flags are prompts to check, not conclusions; no tax or
-  accounting advice; **not a financial audit**; the user confirms the right to process the invoices imported.
-- **Wording:** no suggestion of a financial audit (Law 162/2017) or of any link with ANAF; "e-Factura" only to
-  describe the invoices.
+- **Non-commercial:** no payments, no ads, no paid tier. Romania's e-commerce law (365/2002) mainly covers services
+  that bring the provider an economic benefit, so a free, ad-free test most likely falls outside it. **The day
+  anything is charged, a PFA or SRL comes first.**
+- **Say who runs it:** About page with the project name and contact address (and, recommended, Gabriel's name).
+- **GDPR for what we collect ourselves:** invoices never reach us; we still have the hosting provider's server
+  logs (IP addresses), feedback e-mails, and later any sign-up list. The Privacy page covers these. No analytics;
+  if ever, only one that sets no cookies (a browser test checks the site sets none).
+- **Personal liability:** as a private person, Gabriel is liable with personal assets, so the Terms page states: free
+  test version, provided as is; flags are prompts to check, not conclusions; no tax or accounting advice; not a
+  financial audit; no link with ANAF; the user imports only invoices they may process. Liability cannot be
+  excluded for intent or gross negligence.
+- **Keep the pages true:** anything new that sends or keeps data (analytics, accounts, the AI assistant, a
+  sign-up list) changes the Privacy page first. Pyodide still loads from jsDelivr (stated on the page) until we
+  serve it ourselves.
 
 ## Architecture
 
-- **Free tier, local-first:** a static site; the engine runs in the user's browser (Pyodide in a Web Worker).
-  Invoices are uploaded as ZIPs, processed and stored in the browser, and never reach our servers. Login
-  (later) stores only the account, the company's CUI and name, and the subscription.
+- **Test version:** a static site on a free host; the engine runs in the user's browser (Pyodide in a Web
+  Worker). Invoices are uploaded as ZIPs, processed and stored in the browser, and never reach us. No login, no
+  server code. Login (later, with a company) stores only the account, the company's CUI and name, and the plan.
 - **Server-side, only where needed:** the AI assistant endpoint (`/api/assistant`, open-source model in the EU),
   ANAF company-status lookups if the browser cannot call ANAF directly, SPV sync if it cannot run in the browser,
   alerts. Paid features live on the server because browser-side gating can be bypassed.
@@ -172,6 +180,8 @@ before a check run, which halved the start-up time.
 ## Decisions
 
 - **11 Oct 2026:**
+  - The first public version is a free, non-commercial test run by Gabriel as a private person; a company (PFA or
+    SRL) only if the feedback justifies it, and always before charging anything.
   - Product name **Clarifact** (no "e-Factura", no "audit"); UI says "verificare" / "checks" instead of "audit".
   - AI assistant parked ("coming soon"); when it returns it uses open-source models hosted in the EU, not GPT.
   - Focus to win clients: price-increase report, effortless import, accountants (several clients per browser),
@@ -255,6 +265,9 @@ before a check run, which halved the start-up time.
   Market research (Romanian tools: in-balanta, Profluo, SPV apps, invoicing software, Termene) and the legal
   checklist for publishing; focus re-ranked. **Renamed to Clarifact**: brand, page titles, report titles and file
   names, Streamlit title; "audit" replaced by "verificare"/"checks" in the UI; hosted provider id is now `hosted`.
+  Decided to publish first as a personal, non-commercial test. Added About, Privacy and Terms pages (RO/EN) for
+  that set-up, linked from every page with a Feedback link; a browser test checks the pages and that the site sets
+  no cookies.
 
 ## For Claude at the start of a session
 

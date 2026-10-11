@@ -15,7 +15,8 @@ import { Import } from "./screens/Import";
 import { Report } from "./screens/Report";
 import { Assistant } from "./screens/Assistant";
 import { Settings as SettingsScreen } from "./screens/Settings";
-import { Landing } from "./screens/Landing";
+import { Landing, SiteLinks } from "./screens/Landing";
+import { LegalPage, PAGES, type Page } from "./screens/Legal";
 
 type Screen = { id: string; label: string; icon: ComponentType<{ size?: number }>; view: ComponentType; sep?: boolean };
 
@@ -31,7 +32,7 @@ const SCREENS: Screen[] = [
   { id: "settings", label: "tab_settings", icon: Settings, view: SettingsScreen, sep: true },
 ];
 
-/** "home" (the landing page, no hash) or an app screen id. */
+/** "home" (the landing page, no hash), an info page (about, privacy, terms) or an app screen id. */
 function useRoute(): string {
   const read = () => location.hash.replace(/^#\/?/, "").split("?")[0] || "home";
   const [route, setRoute] = useState(read);
@@ -40,7 +41,7 @@ function useRoute(): string {
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
-  return route === "home" || SCREENS.some((s) => s.id === route) ? route : "overview";
+  return route === "home" || (PAGES as readonly string[]).includes(route) || SCREENS.some((s) => s.id === route) ? route : "overview";
 }
 
 const THEMES: Theme[] = ["system", "light", "dark"];
@@ -148,7 +149,7 @@ function Shell({ route }: { route: string }) {
           {es.phase === "ready" && !es.persistent && <div className="callout warn" role="status">{L("not_persistent")}</div>}
           {es.phase === "ready" ? <View /> : <EngineSplash />}
         </div>
-        <footer className="app-foot">{L("disclaimer")}</footer>
+        <footer className="app-foot"><span>{L("disclaimer")}</span><SiteLinks /></footer>
       </main>
       <Toasts />
     </div>
@@ -158,7 +159,8 @@ function Shell({ route }: { route: string }) {
 export default function App() {
   const { L } = useApp();
   const route = useRoute();
-  const inApp = route !== "home";
+  const info = (PAGES as readonly string[]).includes(route);
+  const inApp = route !== "home" && !info;
   useEffect(() => {
     if (inApp) engine.start();
     window.scrollTo(0, 0);
@@ -166,5 +168,6 @@ export default function App() {
   useEffect(() => {
     if (!inApp) document.title = `${BRAND} · ${L("app_title")}`;
   }, [inApp, L]);
+  if (info) return <LegalPage page={route as Page} />;
   return inApp ? <Shell route={route} /> : <><Landing /><Toasts /></>;
 }

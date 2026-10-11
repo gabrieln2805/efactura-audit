@@ -5,7 +5,7 @@ import { ArrowRight, Building2, Copy, Cpu, FileDown, HardDrive, KeyRound, Lock, 
 import { engine, useApp, type Theme } from "../state";
 import { CHECKS, fmtLei, pick, type Lang } from "../i18n";
 import { SevBadge } from "../components/ui";
-import { BRAND } from "../brand";
+import { BRAND, CONTACT_EMAIL } from "../brand";
 
 const COPY = {
   ro: {
@@ -35,7 +35,7 @@ const COPY = {
       ["Asistent AI (în curând)", "Răspunsuri în limba română din datele dumneavoastră, cu un model AI open-source găzduit în UE. Fișierele facturilor nu îi sunt trimise."],
     ],
     firstVisit: "Prima pornire descarcă aproximativ 50 MB (motorul de analiză); următoarele pornesc din memoria browserului.",
-    disclaimer: "Semnalările sunt indicii de verificat, nu concluzii. Instrumentul nu oferă consultanță fiscală sau contabilă.",
+    disclaimer: "Versiune de test, gratuită. Semnalările sunt indicii de verificat, nu concluzii. Nu este consultanță fiscală sau contabilă și nici audit financiar.",
   },
   en: {
     eyebrow: "For finance controllers, accountants and business owners",
@@ -64,7 +64,7 @@ const COPY = {
       ["AI assistant (coming soon)", "Answers in Romanian from your data, with an open-source AI model hosted in the EU. Invoice files are not sent to it."],
     ],
     firstVisit: "The first start downloads about 50 MB (the analysis engine); later visits start from the browser's cache.",
-    disclaimer: "Flags are prompts to check, not conclusions. The tool gives no tax or accounting advice.",
+    disclaimer: "Free test version. Flags are prompts to check, not conclusions. Not tax or accounting advice, and not a financial audit.",
   },
 };
 
@@ -78,13 +78,39 @@ const PRIVACY_ICONS = [Lock, HardDrive, KeyRound];
 const THEMES: Theme[] = ["system", "light", "dark"];
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
 
-export function Landing() {
+const LINKS: Record<Lang, [string, string][]> = {
+  ro: [["#/about", "Despre"], ["#/privacy", "Confidențialitate"], ["#/terms", "Termeni"]],
+  en: [["#/about", "About"], ["#/privacy", "Privacy"], ["#/terms", "Terms"]],
+};
+
+/** About · Privacy · Terms · Feedback: on the landing page, the info pages and every app screen. */
+export function SiteLinks() {
+  const { lang } = useApp();
+  return (
+    <nav className="site-links" aria-label="Clarifact">
+      {LINKS[lang].map(([href, label]) => <a key={href} href={href}>{label}</a>)}
+      <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Feedback ${BRAND}`)}`} data-testid="feedback-link">Feedback</a>
+    </nav>
+  );
+}
+
+export function SiteFooter() {
+  const { lang } = useApp();
+  return (
+    <footer className="landing-foot">
+      <span>{COPY[lang].disclaimer}</span>
+      <SiteLinks />
+    </footer>
+  );
+}
+
+/** The landing page's top bar, also used by the About, Privacy and Terms pages. */
+export function SiteBar() {
   const { lang, setLang, theme, setTheme, L } = useApp();
   const c = COPY[lang];
   const ThemeIcon = THEME_ICON[theme];
   const warm = () => engine.start();   // begin the 50 MB download while the visitor decides
   return (
-    <div className="landing">
       <header className="landing-bar">
         <a className="brand" href="#/"><span className="brand-mark"><ReceiptText size={17} /></span>
           <span className="brand-name">{BRAND}</span></a>
@@ -99,6 +125,16 @@ export function Landing() {
           <a className="btn" href="#/overview" onMouseEnter={warm} onFocus={warm}>{c.open}</a>
         </div>
       </header>
+  );
+}
+
+export function Landing() {
+  const { lang } = useApp();
+  const c = COPY[lang];
+  const warm = () => engine.start();   // begin the 50 MB download while the visitor decides
+  return (
+    <div className="landing">
+      <SiteBar />
 
       <section className="hero">
         <div className="hero-text">
@@ -156,9 +192,7 @@ export function Landing() {
         <div className="hint">{c.firstVisit}</div>
       </section>
 
-      <footer className="landing-foot">
-        <span>{c.disclaimer}</span>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
